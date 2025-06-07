@@ -35,6 +35,15 @@ COPY ./pyproject.toml ./uv.lock ./alembic.ini /app/
 
 COPY ./app /app/app
 
+# ─── NEW LINES TO ADD ───────────────────────────────────────────────────────────
+# 1) Copy your service-account key into the image
+#    (make sure you have a folder "keys" next to this Dockerfile, containing service-account.json)
+COPY ./keys/service-account.json /app/keys/service-account.json
+
+# 2) Point ADC to the copied JSON
+ENV GOOGLE_APPLICATION_CREDENTIALS="/app/keys/service-account.json"
+# ────────────────────────────────────────────────────────────────────────────────
+
 # Sync the project
 # Ref: https://docs.astral.sh/uv/guides/integration/docker/#intermediate-layers
 RUN --mount=type=cache,target=/root/.cache/uv \
