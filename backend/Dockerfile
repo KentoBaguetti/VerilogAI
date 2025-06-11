@@ -29,6 +29,29 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 ENV PYTHONPATH=/app
 
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+      build-essential autoconf gperf bison flex git \
+      meson ninja-build desktop-file-utils pkg-config \
+      libgtk-3-dev libgtk-4-dev libbz2-dev libjudy-dev libgirepository1.0-dev \
+ && rm -rf /var/lib/apt/lists/*
+
+RUN git clone https://github.com/steveicarus/iverilog.git /app/iverilog \
+ && cd /app/iverilog \
+ && sh autoconf.sh \
+ && ./configure --prefix=/usr/local \
+ && make -j"$(nproc)" \
+ && make install \
+ && rm -rf /app/iverilog
+
+
+RUN git clone https://github.com/gtkwave/gtkwave.git /app/gtkwave \
+ && cd /app/gtkwave \
+ && meson setup build --prefix=/usr/local \
+ && cd build \
+ && meson install \
+ && rm -rf /app/gtkwave
+
 COPY ./scripts /app/scripts
 
 COPY ./pyproject.toml ./uv.lock ./alembic.ini /app/

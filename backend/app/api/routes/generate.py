@@ -15,7 +15,7 @@ from google.auth.exceptions import DefaultCredentialsError
 
 PROJECT_NUMBER = "556201303018"
 LOCATION       = "us-central1"
-ENDPOINT_ID    = "6636842400767541248"
+ENDPOINT_ID    = "6095566020552949760"
 
 # Dedicated DNS for your endpoint
 DEDICATED_DNS = f"{ENDPOINT_ID}.{LOCATION}-{PROJECT_NUMBER}.prediction.vertexai.goog"
@@ -64,7 +64,7 @@ def get_access_token() -> str:
 @router.post("/", response_model=GenerateResponse)
 def generate(req: GenerateRequest):
     # 1) Validate prompt
-    prompt_text = ("You are a verilog and digital design expert, complete the code by giving the text following the already given code after this :" 
+    prompt_text = ("You are a verilog and digital design expert, complete the code by giving the text following the already given code after this, only and only in Verilog :" 
     + req.prompt.strip()
     )
     if not prompt_text:
@@ -92,7 +92,7 @@ def generate(req: GenerateRequest):
         "-H", f"Authorization: Bearer {access_token}",
         "-H", "Content-Type: application/json",
         "-d", payload_json,
-        "https://6636842400767541248.us-central1-556201303018.prediction.vertexai.goog/v1/projects/556201303018/locations/us-central1/endpoints/6636842400767541248:predict",
+        "https://6095566020552949760.us-central1-556201303018.prediction.vertexai.goog/v1/projects/556201303018/locations/us-central1/endpoints/6095566020552949760:predict",
     ]
     # 7) Run curl and capture output
     try:
