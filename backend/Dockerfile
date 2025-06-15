@@ -33,7 +33,7 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends \
       build-essential autoconf gperf bison flex git \
       meson ninja-build desktop-file-utils pkg-config \
-      libgtk-3-dev libgtk-4-dev libbz2-dev libjudy-dev libgirepository1.0-dev \
+      libgtk-3-dev libgtk-4-dev libbz2-dev libjudy-dev libgirepository1.0-dev verilator \
  && rm -rf /var/lib/apt/lists/*
 
 RUN git clone https://github.com/steveicarus/iverilog.git /app/iverilog \

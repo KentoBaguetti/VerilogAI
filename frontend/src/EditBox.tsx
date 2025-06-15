@@ -1,5 +1,3 @@
-// EditBox.tsx
-
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import axios from "axios";
 import Editor, { OnMount } from "@monaco-editor/react";
@@ -12,17 +10,16 @@ import { CompletionFormatter } from "./components/editor/completion-formatter";
 interface TextEditorProps {
   language: "verilog";
   cacheSize?: number;
-
-  /** Initial text to load into the editor */
-  initialValue?: string;
-  /** Called whenever the editor content changes */
+  value: string; // ✅ Controlled input
+  aiEnabled?: boolean;
   onValueChange?: (newValue: string) => void;
 }
 
 const EditBox: React.FC<TextEditorProps> = ({
   language,
   cacheSize = 10,
-  initialValue = "// Enter code",
+  value,
+  aiEnabled = false,
   onValueChange,
 }) => {
   const monaco = useMonaco();
@@ -30,11 +27,17 @@ const EditBox: React.FC<TextEditorProps> = ({
 
   const editorRef = useRef<monacoEditor.editor.IStandaloneCodeEditor | null>(null);
   const debounceTimerRef = useRef<number>();
+  const lintTimer = useRef<number>();
   const [cachedSuggestions, setCachedSuggestions] = useState<any[]>([]);
   const suggestionsRef = useRef<any[]>([]);
   const suppressSuggestionsRef = useRef(false);
+  const [markers, setMarkers] = useState<monacoEditor.editor.IMarkerData[]>([]);
 
-  // Debounced AI fetch
+  const aiEnabledRef = useRef(aiEnabled);
+  useEffect(() => {
+    aiEnabledRef.current = aiEnabled;
+  }, [aiEnabled]);
+
   const debouncedSuggestions = useCallback(() => {
     const editor = editorRef.current;
     if (suppressSuggestionsRef.current || !editor) return;
@@ -53,7 +56,7 @@ const EditBox: React.FC<TextEditorProps> = ({
     if (!textBeforeCursor) return;
 
     axios
-      .post("http://localhost:8000/api/v1/generate/", { prompt: textBeforeCursor })
+      .post("https://api.34-83-146-113.nip.io/api/v1/generate/", { prompt: textBeforeCursor })
       .then((res) => {
         const newCompletion = res.data.text;
         if (!newCompletion || typeof newCompletion !== "string") return;
@@ -78,7 +81,6 @@ const EditBox: React.FC<TextEditorProps> = ({
       .catch((err) => console.error("Axios request failed:", err));
   }, [cacheSize]);
 
-  // Debounce wrapper
   const triggerSuggestionsAfterPause = useCallback(() => {
     clearTimeout(debounceTimerRef.current);
     debounceTimerRef.current = window.setTimeout(() => {
@@ -87,7 +89,34 @@ const EditBox: React.FC<TextEditorProps> = ({
     }, 2000);
   }, [debouncedSuggestions]);
 
-  // Register inline‐suggest provider
+  const runLint = useCallback(() => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    const code = editor.getValue();
+    axios
+      .post("https://api.34-83-146-113.nip.io/api/v1/lint/", { code })
+      .then((res) => {
+        const diags = res.data.diagnostics.map((d: any) => ({
+          severity:
+            d.severity === "error"
+              ? monacoEditor.MarkerSeverity.Error
+              : monacoEditor.MarkerSeverity.Warning,
+          startLineNumber: d.line,
+          startColumn: d.column,
+          endLineNumber: d.line,
+          endColumn: d.column + 1,
+          message: d.message,
+        }));
+        setMarkers(diags);
+      })
+      .catch(() => {});
+  }, []);
+
+  const triggerLint = useCallback(() => {
+    clearTimeout(lintTimer.current);
+    lintTimer.current = window.setTimeout(runLint, 2000);
+  }, [runLint]);
+
   useEffect(() => {
     if (!monaco) return;
     const provider = monaco.languages.registerInlineCompletionsProvider(language, {
@@ -101,7 +130,6 @@ const EditBox: React.FC<TextEditorProps> = ({
     return () => provider.dispose();
   }, [monaco, language]);
 
-  // Trigger Monaco to show suggestions
   useEffect(() => {
     if (cachedSuggestions.length === 0) return;
     setTimeout(() => {
@@ -113,22 +141,35 @@ const EditBox: React.FC<TextEditorProps> = ({
     }, 0);
   }, [cachedSuggestions]);
 
-  // Cleanup on unmount
   useEffect(() => {
-    return () => clearTimeout(debounceTimerRef.current);
+    const editor = editorRef.current;
+    const model = editor?.getModel();
+    if (model) monacoEditor.editor.setModelMarkers(model, "lint", markers);
+  }, [markers]);
+
+  useEffect(() => {
+    return () => {
+      clearTimeout(debounceTimerRef.current);
+      clearTimeout(lintTimer.current);
+    };
   }, []);
 
-  // onMount handler
   const handleMount: OnMount = (editor) => {
     editorRef.current = editor;
 
-    // Propagate content changes
     editor.onDidChangeModelContent(() => {
       const val = editor.getValue();
       onValueChange?.(val);
+      triggerLint();
+
+      if (aiEnabledRef.current) {
+        suppressSuggestionsRef.current = false;
+        suggestionsRef.current = [];
+        setCachedSuggestions([]);
+        triggerSuggestionsAfterPause();
+      }
     });
 
-    // KeyUp logic for suppression, skip, and debounce
     editor.onKeyUp((e) => {
       const skip = [
         monacoEditor.KeyCode.Space,
@@ -143,13 +184,16 @@ const EditBox: React.FC<TextEditorProps> = ({
         editor.trigger("keyboard", "hideSuggestWidget", {});
         return;
       }
-
       if (skip.includes(e.keyCode)) return;
 
-      suppressSuggestionsRef.current = false;
-      suggestionsRef.current = [];
-      setCachedSuggestions([]);
-      triggerSuggestionsAfterPause();
+      if (aiEnabledRef.current) {
+        suppressSuggestionsRef.current = false;
+        suggestionsRef.current = [];
+        setCachedSuggestions([]);
+        triggerSuggestionsAfterPause();
+      }
+
+      triggerLint();
     });
   };
 
@@ -157,8 +201,8 @@ const EditBox: React.FC<TextEditorProps> = ({
     <Editor
       height="90vh"
       width="100%"
-      defaultLanguage={language}
-      defaultValue={initialValue}
+      language={language}
+      value={value} // ✅ Fully controlled
       theme={colorMode === "dark" ? "vs" : "vs-dark"}
       options={{
         autoClosingBrackets: "always",
@@ -166,7 +210,8 @@ const EditBox: React.FC<TextEditorProps> = ({
         formatOnType: true,
         formatOnPaste: true,
         trimAutoWhitespace: true,
-        inlineSuggest: { enabled: true },
+        inlineSuggest: { enabled: aiEnabled },
+        renderValidationDecorations: "on",
       }}
       onMount={handleMount}
     />

@@ -1,56 +1,29 @@
-// App.tsx
-import React, { useState, useEffect } from "react";
-import { Box, Heading, Spinner, Flex, Text} from "@chakra-ui/react";
+import React, { useState } from "react";
+import { Box, Heading, Spinner, Flex, Text } from "@chakra-ui/react";
 import EditBox from "./EditBox";
-import Editor from "@monaco-editor/react";
 import { Button } from "./components/ui/button.tsx";
 import axios from "axios";
 import { useColorMode } from "./components/ui/color-mode.tsx";
 import Switch from "react-switch";
 
-
 type Tab = "editor" | "testbench";
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<Tab>("editor");
-  const [codeValue, setCodeValue] = useState<string>("// Enter code\n");
-  const [testbenchValue, setTestbenchValue] = useState<string>("");
+  const [codeValue, setCodeValue] = useState("// Enter code\n");
+  const [testbenchValue, setTestbenchValue] = useState("");
   const [loadingTestbench, setLoadingTestbench] = useState(false);
   const [errorTestbench, setErrorTestbench] = useState<string | null>(null);
   const [simLoading, setSimLoading] = useState(false);
-  const [simLogs, setSimLogs] = useState<string>("");
+  const [simLogs, setSimLogs] = useState("");
   const [aiCopilotMode, setAiCopilotMode] = useState(false);
   const { colorMode } = useColorMode();
 
-  // Generate testbench when switching tabs
-  useEffect(() => {
-    if (activeTab !== "testbench") return;
-    if (testbenchValue.trim()) return;
-
-    setLoadingTestbench(true);
-    setErrorTestbench(null);
-
-    const tbprompt = `
-You are a Verilog verification expert. Given this module, generate a complete testbench. Only return the testbench:
-
-${codeValue}
-`;
-
-    axios
-      .post("http://localhost:8000/api/v1/generate/", { prompt: tbprompt })
-      .then((resp) => setTestbenchValue(resp.data.text || ""))
-      .catch((err) =>
-        setErrorTestbench(err.response?.data?.detail || err.message)
-      )
-      .finally(() => setLoadingTestbench(false));
-  }, [activeTab, codeValue, testbenchValue]);
-
-  // Handler for Simulate button
   const handleSimulate = () => {
     setSimLoading(true);
     setSimLogs("");
     axios
-      .post<{ logs: string }>("http://localhost:8000/api/v1/simulate/", {
+      .post<{ logs: string }>("https://api.34-83-146-113.nip.io/api/v1/simulate/", {
         code: codeValue,
         testbench: testbenchValue,
       })
@@ -62,19 +35,36 @@ ${codeValue}
       .finally(() => setSimLoading(false));
   };
 
+  const handleTestbench = () => {
+    setLoadingTestbench(true);
+    setErrorTestbench(null);
+    const tbprompt = `
+You are a Verilog verification expert. Given this module, generate a complete testbench. Only return the testbench, No explanations, just code:
+${codeValue}
+`;
+    axios
+      .post("https://api.34-83-146-113.nip.io/api/v1/tb/", { prompt: tbprompt })
+      .then((resp) => setTestbenchValue(resp.data.text || ""))
+      .catch((err) =>
+        setErrorTestbench(err.response?.data?.detail || err.message)
+      )
+      .finally(() => setLoadingTestbench(false));
+  };
+
   return (
-    <Box
-      minH="100vh"
-      bg="#0f0a19"
-      px={6}
-      py={8}
-      fontFamily="Inter, sans-serif"
-    >
-      <Heading as="h1" size="2xl" color="white" textAlign="center" mb={6} fontWeight="bold">
+    <Box minH="100vh" bg="#282c34" px={6} py={8} fontFamily="Inter, sans-serif">
+      <Heading
+        as="h1"
+        size="2xl"
+        color="white"
+        textAlign="center"
+        mb={6}
+        fontWeight="bold"
+      >
         VerilogAI
       </Heading>
 
-      {/* Controls: Tabs + AI Copilot toggle */}
+      {/* Controls */}
       <Flex justify="space-between" align="center" mb={4}>
         <Flex>
           <Button
@@ -98,15 +88,8 @@ ${codeValue}
           </Button>
         </Flex>
 
-        {/* AI Copilot toggle using plain checkbox */}
         <Flex align="center">
-          <Text 
-          color="white"
-          display="inline-block" 
-          mr={2}
-          fontSize="md"
-          fontWeight="semibold"
-          >
+          <Text color="white" mr={2} fontSize="md" fontWeight="semibold">
             AI Copilot
           </Text>
           <Switch
@@ -123,48 +106,39 @@ ${codeValue}
             handleDiameter={16}
             boxShadow="0 0 2px rgba(0,0,0,0.5)"
             activeBoxShadow="0 0 2px rgba(0,0,0,0.5)"
-            id="ai-copilot-toggle" 
-          />           
+            id="ai-copilot-toggle"
+          />
         </Flex>
       </Flex>
 
-      {/* Editor vs Testbench */}
-      {activeTab === "editor" ? (
-        aiCopilotMode ? (
+      {/* Editor & Testbench */}
+      <Box position="relative" minH="90vh">
+        <Box
+          position={activeTab === "editor" ? "relative" : "absolute"}
+          visibility={activeTab === "editor" ? "visible" : "hidden"}
+          width="100%"
+          top={0}
+          left={0}
+        >
           <EditBox
             language="verilog"
-            cacheSize={10}
-            initialValue={codeValue}
-            onValueChange={(v) => {
-              setCodeValue(v);
-              setTestbenchValue("");
-            }}
-          />
-        ) : (
-          <Editor
-            height="90vh"
-            width="100%"
-            defaultLanguage="verilog"
             value={codeValue}
-            theme={colorMode === "dark" ? "dark" : "vs-dark"}
-            options={{
-              readOnly: false,
-              minimap: { enabled: false },
-              inlineSuggest: { enabled: false },
-            }}
-            onChange={(v) => setCodeValue(v || "")}
+            aiEnabled={aiCopilotMode}
+            onValueChange={(v) => setCodeValue(v)}
           />
-        )
-      ) : (
-        <Box>
-          <Box
-            pb={2}
-            mb={2}
-            borderBottom="1px solid #333"
-            color="white"
-            fontWeight="bold"
-          >
-            AI-Generated Testbench{" "}
+          <Button mt={4} colorScheme="green" onClick={handleTestbench}>
+            Generate Testbench
+          </Button>
+        </Box>
+
+        <Box
+          position={activeTab === "testbench" ? "relative" : "absolute"}
+          visibility={activeTab === "testbench" ? "visible" : "hidden"}
+          width="100%"
+          top={0}
+          left={0}
+        >
+          <Box mb={2} color="white" fontWeight="bold">
             {loadingTestbench && <Spinner size="xs" ml={2} />}
             {errorTestbench && (
               <Text as="span" color="crimson" ml={2}>
@@ -172,24 +146,20 @@ ${codeValue}
               </Text>
             )}
           </Box>
-
-          <Editor
-            height="50vh"
-            defaultLanguage="verilog"
+          <EditBox
+            language="verilog"
             value={testbenchValue}
-            theme={colorMode === "dark" ? "dark" : "vs-dark"}
-            options={{ readOnly: false, minimap: { enabled: false } }}
-            onChange={(v) => setTestbenchValue(v || "")}
+            aiEnabled={aiCopilotMode}
+            onValueChange={(v) => setTestbenchValue(v)}
           />
-
-          <Button
-            mt={4}
-            colorScheme="green"
-            onClick={handleSimulate}
-          >
-            Simulate
-          </Button>
-
+         <Flex mt={4} gap={3}>
+            <Button colorScheme="green" onClick={handleSimulate}>
+              Simulate
+            </Button>
+            <Button colorScheme="green" onClick={handleTestbench}>
+              Generate Testbench
+            </Button>
+          </Flex>
           <Box
             as="pre"
             mt={2}
@@ -203,14 +173,10 @@ ${codeValue}
             whiteSpace="pre-wrap"
           >
             {simLogs ||
-              (simLoading
-                ? "Running simulation…"
-                : "Logs will appear here.")
-            }
-
+              (simLoading ? "Running simulation…" : "Logs will appear here.")}
           </Box>
         </Box>
-      )}
+      </Box>
     </Box>
   );
 };

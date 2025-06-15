@@ -1,5 +1,3 @@
-# app/api/routes/generate.py
-
 from typing import Any, Dict
 import subprocess
 import json
@@ -25,7 +23,7 @@ REST_URL = (
     f"endpoints/{ENDPOINT_ID}:predict"
 )
 
-router = APIRouter(prefix="/generate", tags=["generate"])
+router = APIRouter(prefix="/tb", tags=["tb"])
 
 
 class GenerateRequest(BaseModel):
@@ -64,7 +62,7 @@ def get_access_token() -> str:
 @router.post("/", response_model=GenerateResponse)
 def generate(req: GenerateRequest):
     # 1) Validate prompt
-    prompt_text = req.prompt.strip()
+    prompt_text = ("You are hardware engineering expert, Give a testbench in Verilog for this verilog code and make sure to use this"+"initial begin $dumpfile test.vcd;$dumpvars 0,test, to generate vcd file for gtkwave" + req.prompt.strip())
     if not prompt_text:
         raise HTTPException(status_code=400, detail="Prompt must not be empty.")
     # 2) Get access token
@@ -80,9 +78,7 @@ def generate(req: GenerateRequest):
 
     # 5) Build JSON payload
     payload_dict: Dict[str, Any] = { "model" : "codestral-2501", 
-                                     "prompt" : prompt_text,
-                                     "suffix" : "",
-                                     "max_tokens" : 100,
+                                     "messages" : [{"role": "user", "content": prompt_text}],
                                      "temperature" : 0.6}
     payload_json = json.dumps(payload_dict)
 
