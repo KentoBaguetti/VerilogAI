@@ -62,7 +62,7 @@ def get_access_token() -> str:
 @router.post("/", response_model=GenerateResponse)
 def generate(req: GenerateRequest):
     # 1) Validate prompt
-    prompt_text = ("You are hardware engineering expert, Give a testbench in Verilog for this verilog code and make sure to use this"+"initial begin $dumpfile test.vcd;$dumpvars 0,test, to generate vcd file for gtkwave" + req.prompt.strip())
+    prompt_text = ("You are hardware engineering expert, Give a testbench in Verilog, no '''verilog comment at the beginning, for this verilog code and make sure to use this"+"initial begin $dumpfile test.vcd;$dumpvars 0,test, to generate vcd file for gtkwave" + req.prompt.strip())
     if not prompt_text:
         raise HTTPException(status_code=400, detail="Prompt must not be empty.")
     # 2) Get access token

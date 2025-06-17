@@ -1,36 +1,36 @@
 import os
+import shutil
 import tempfile
 import subprocess
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
+from fastapi.responses import FileResponse
 
 router = APIRouter(prefix="/simulate", tags=["simulate"])
-
 
 class SimulateRequest(BaseModel):
     code: str
     testbench: str
 
-
 class SimulateResponse(BaseModel):
     logs: str
-
 
 @router.post("/", response_model=SimulateResponse)
 def simulate(req: SimulateRequest):
     logs = ""
-    # 1) Create a temp dir and write the two .v files
+    wave_output_path = "/wave/test.vcd"  # final location served to frontend and gtkwave
+
     with tempfile.TemporaryDirectory() as tmpdir:
         module_v = os.path.join(tmpdir, "module.v")
         tb_v     = os.path.join(tmpdir, "tb.v")
         out_vvp  = os.path.join(tmpdir, "sim.vvp")
+        vcd_path = os.path.join(tmpdir, "test.vcd")
 
         with open(module_v, "w") as f:
             f.write(req.code)
         with open(tb_v, "w") as f:
             f.write(req.testbench)
 
-        # 2) Compile with iverilog
         try:
             cp = subprocess.run(
                 ["iverilog", "-o", out_vvp, module_v, tb_v],
@@ -41,7 +41,10 @@ def simulate(req: SimulateRequest):
             logs += f"\n[Compiler error]\n{e.stdout}{e.stderr}"
             return SimulateResponse(logs=logs)
 
-        # 3) Simulate with vvp (assumes your TB does $dumpfile("wave.vcd") / $dumpvars)
+        # Change directory before running simulation
+        old_cwd = os.getcwd()
+        os.chdir(tmpdir)
+
         try:
             cp = subprocess.run(
                 ["vvp", out_vvp],
@@ -50,17 +53,24 @@ def simulate(req: SimulateRequest):
             logs += cp.stdout + cp.stderr
         except subprocess.CalledProcessError as e:
             logs += f"\n[Simulation error]\n{e.stdout}{e.stderr}"
+            os.chdir(old_cwd)
             return SimulateResponse(logs=logs)
 
-        # 4) Launch GTKWave on the generated VCD
-        vcd = os.path.join(tmpdir, "wave.vcd")
-        if os.path.exists(vcd):
-            try:
-                # this will pop up in WSLg or via X-forward
-                subprocess.Popen(["gtkwave", vcd], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            except Exception as e:
-                logs += f"\n[GTKWave launch failed] {e}\n"
+        os.chdir(old_cwd)  # Restore original directory
+
+        if os.path.exists(vcd_path):
+            shutil.copyfile(vcd_path, wave_output_path)
+            # Create trigger file
+            with open("/wave/trigger-gtkwave.txt", "w") as trig:
+                trig.write("show")
         else:
-            logs += "\n[Warning] No wave.vcd found to open in GTKWave.\n"
+            logs += "\n[Warning] No test.vcd found.\n"
 
     return SimulateResponse(logs=logs)
+
+@router.get("/vcd")
+def get_vcd():
+    path = "/wave/test.vcd"
+    if os.path.exists(path):
+        return FileResponse(path, media_type="text/plain", filename="test.vcd")
+    raise HTTPException(status_code=404, detail="VCD file not found.")

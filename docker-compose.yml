@@ -118,6 +118,8 @@ services:
 
     build:
       context: ./backend
+    volumes:
+      - vcd-data:/wave  # Share VCD files
     labels:
       - traefik.enable=true
       - traefik.docker.network=traefik-public
@@ -164,8 +166,28 @@ services:
 
       # Enable redirection for HTTP and HTTPS
       - traefik.http.routers.${STACK_NAME?Variable not set}-frontend-http.middlewares=https-redirect
+  gtkwave:
+    build:
+      context: ./gtkwave
+    container_name: gtkwave
+    ports:
+      - "6080:6080"
+    volumes:
+      - vcd-data:/wave
+    networks:
+      - traefik-public
+      - default
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.gtkwave.rule=Host(`gtkwave.${DOMAIN}`)
+      - traefik.http.routers.gtkwave.entrypoints=https
+      - traefik.http.routers.gtkwave.tls.certresolver=le
+      - traefik.http.services.gtkwave.loadbalancer.server.port=6080
+
+
 volumes:
   app-db-data:
+  vcd-data:
 
 networks:
   traefik-public:
