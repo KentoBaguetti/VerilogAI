@@ -48,6 +48,10 @@ Writing Verilog (and other HDLs) often involves a ton of repetitive boilerplateâ
   - GTKWave via noVNC + Xvfb/Fluxbox  
   - Future: migrate to a JS-native WaveDrom component
 
+- **Version Control**
+  - GitLab for version control and hosting the project publicly
+
+
 - **Deployment**  
   - Docker Compose orchestrates:  
     - PostgreSQL (for other app services)  
