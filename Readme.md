@@ -25,6 +25,11 @@ Writing Verilog (and other HDLs) often involves a ton of repetitive boilerplate‚
 
 ## üèó How We Built It
 
+- **Full Stack**
+  - used the Full stack template from FastAPI
+  - this repo is cloned from https://github.com/fastapi/full-stack-fastapi-template.git, which is
+  the best template available for web dev in my opinion
+
 - **Frontend**  
   - React + TypeScript + Chakra UI  
   - Monaco Editor for code editing  
