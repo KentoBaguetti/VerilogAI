@@ -3,6 +3,7 @@ import subprocess
 import json
 import traceback
 import os
+import re
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -59,12 +60,20 @@ def get_access_token() -> str:
     return creds.token
 
 
+def strip_code_fences(code: str) -> str:
+    """
+    Remove triple backticks and optional 'verilog' tags from fenced code blocks.
+    """
+    return re.sub(r"^```(?:verilog)?\n(.*?)\n```$", r"\1", code.strip(), flags=re.DOTALL)
+
+
 @router.post("/", response_model=GenerateResponse)
 def generate(req: GenerateRequest):
     # 1) Validate prompt
-    prompt_text = ("You are hardware engineering expert, Give a testbench in Verilog, no '''verilog comment at the beginning, for this verilog code and make sure to use this"+"initial begin $dumpfile test.vcd;$dumpvars 0,test, to generate vcd file for gtkwave" + req.prompt.strip())
+    prompt_text = ("You are hardware engineering expert, Give a testbench in Verilog, no verilog comment at the beginning, for this verilog code and make sure to use this"+"initial begin $dumpfile test.vcd;$dumpvars 0,test, to generate vcd file for gtkwave"+ req.prompt.strip())
     if not prompt_text:
         raise HTTPException(status_code=400, detail="Prompt must not be empty.")
+
     # 2) Get access token
     try:
         access_token = get_access_token()
@@ -77,25 +86,28 @@ def generate(req: GenerateRequest):
         raise HTTPException(status_code=500, detail="curl not found on PATH")
 
     # 5) Build JSON payload
-    payload_dict: Dict[str, Any] = { "model" : "codestral-2501", 
-                                     "messages" : [{"role": "user", "content": prompt_text}],
-                                     "temperature" : 0.6}
+    payload_dict: Dict[str, Any] = {
+        "model": "codestral-2501",
+        "messages": [{"role": "user", "content": prompt_text}],
+        "temperature": 0.6,
+    }
     payload_json = json.dumps(payload_dict)
 
     # 6) Build the curl command
     curl_cmd = [
         "curl",
-        "-v",               # verbose so we see request/response in logs
+        "-v",
         "-X", "POST",
         "-H", f"Authorization: Bearer {access_token}",
         "-H", "Content-Type: application/json",
         "https://us-central1-aiplatform.googleapis.com/v1/projects/556201303018/locations/us-central1/publishers/mistralai/models/codestral-2501:rawPredict",
         "-d", payload_json,
     ]
+
     # 7) Run curl and capture output
     try:
         result = subprocess.run(curl_cmd, capture_output=True, text=True, timeout=30)
-    except subprocess.TimeoutExpired as e:
+    except subprocess.TimeoutExpired:
         raise HTTPException(status_code=500, detail="curl request timed out")
 
     if result.returncode != 0:
@@ -113,6 +125,7 @@ def generate(req: GenerateRequest):
             detail=f"Invalid JSON response from Vertex AI: {result.stdout}"
         )
     print(resp_json)
+
     # 9) Extract generated text
     try:
         generated_text = resp_json["choices"][0]["message"]["content"]
@@ -121,9 +134,7 @@ def generate(req: GenerateRequest):
             status_code=500,
             detail=f"Unexpected response format: {resp_json}"
         )
-    #marker = "\nOutput:\n"
-    #if marker in generated_text:
-        #generated_text = generated_text.split(marker, 1)[1]
 
-    # 10) Return it
-    return GenerateResponse(text=generated_text)
+    # 10) Clean and return
+    cleaned_text = strip_code_fences(generated_text)
+    return GenerateResponse(text=cleaned_text)

@@ -45,7 +45,7 @@ const App: React.FC = () => {
     setLoadingTestbench(true);
     setErrorTestbench(null);
     const tbprompt = `
-You are a Verilog verification expert. Given this module, generate a complete testbench. Only return the testbench, No explanations, just code:
+You are a Verilog verification expert. Given this module, generate a complete testbench. Only return the testbench,starting from module and ending with endmodule, No explanations, just code:
 ${codeValue}
 `;
     axios
