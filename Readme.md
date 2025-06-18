@@ -59,6 +59,7 @@ Writing Verilog (and other HDLs) often involves a ton of repetitive boilerplateâ
     - React frontend  
     - GTKWave container  
   - Traefik handles routing & TLS
+  - Used Compute Engine on Google Cloud Platform to setup a virtual machine for hosting the website
 
 ---
 
