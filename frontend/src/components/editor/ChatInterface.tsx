@@ -7,6 +7,7 @@ import {
   Box,
   Text,
   Spinner,
+  Button,
 } from "@chakra-ui/react";
 import { keyframes } from "@emotion/react";
 import {
@@ -28,6 +29,8 @@ interface ChatMessage {
 interface ChatInterfaceProps {
   editorContent: string;
   onSuggestCode?: (code: string) => void;
+  onStreamCode?: (codeChunk: string, isFirstChunk: boolean) => void;
+  isStreamingCode?: boolean;
 }
 
 const bounce = keyframes`
@@ -35,7 +38,7 @@ const bounce = keyframes`
   50% { transform: translateY(-5px); }
 `;
 
-const ChatInterface: React.FC<ChatInterfaceProps> = ({ editorContent, onSuggestCode }) => {
+const ChatInterface: React.FC<ChatInterfaceProps> = ({ editorContent, onSuggestCode, onStreamCode, isStreamingCode }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -43,6 +46,9 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ editorContent, onSuggestC
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { showErrorToast } = useCustomToast();
   const { colorMode } = useColorMode();
+  
+  // New state to track if we are in "Apply Mode" (direct to editor)
+  const [isApplyMode, setIsApplyMode] = useState(false);
 
   const isDark = colorMode === "dark";
   const bgColor = isDark ? "gray.900" : "white";
@@ -61,13 +67,19 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ editorContent, onSuggestC
 
   useEffect(scrollToBottom, [messages, isLoading]);
 
-  const handleSendMessage = async () => {
+  const handleSendMessage = async (applyToEditor = false) => {
     if (!input.trim()) return;
 
     const userMessage: ChatMessage = { role: "user", content: input };
     setMessages((prev) => [...prev, userMessage]);
+    
+    const promptText = input;
     setInput("");
     setIsLoading(true);
+    
+    if (applyToEditor) {
+        setIsApplyMode(true);
+    }
 
     try {
       const response = await fetch("http://localhost:8000/api/v1/chat/stream", {
@@ -95,42 +107,101 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ editorContent, onSuggestC
       const decoder = new TextDecoder();
       let assistantMessage = "";
       let isFirstChunk = true;
+      
+      // If applying to editor, we'll accumulate code separately to handle potential text+code mix
+      let codeAccumulator = "";
+      let inCodeBlock = false;
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
 
-        if (isFirstChunk) {
-          setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
-          isFirstChunk = false;
-        }
-
         const chunk = decoder.decode(value, { stream: true });
-
-        assistantMessage += chunk;
-
-        setMessages((prev) => {
-          const newMessages = [...prev];
-          const lastMsg = newMessages[newMessages.length - 1];
-          if (lastMsg.role === "assistant") {
-            lastMsg.content = assistantMessage;
-          }
-          return newMessages;
-        });
+        
+        if (applyToEditor && onStreamCode) {
+            // Simple heuristic: If we find code block markers, try to extract code
+            // For direct streaming, ideally the backend would just return code if requested.
+            // For now, let's just stream everything to the diff editor so the user sees it building up.
+            // To do this cleanly, we might need to strip markdown if present, but for a "Cursor-like" feel,
+            // usually the agent returns JUST the code when asked to edit.
+            
+            // Let's assume for "Apply Edit" mode, we want to stream the raw content to the DiffEditor
+            // But we need to handle the case where the LLM wraps it in ```verilog
+            
+            assistantMessage += chunk;
+            
+            // VERY BASIC parsing for streaming:
+            // If we detect ```verilog, we start capturing.
+            // Real-time parsing is tricky. 
+            // Simpler approach: Stream raw text to the editor, and let the user clean it up, 
+            // OR, wait for the full response to "Apply" (which is what we had).
+            
+            // Better approach for "Agentic" feel:
+            // Send the chunk directly. 
+            // However, the diff editor expects the FULL "modified" string to calculate diffs.
+            // So we must accumulate and send the FULL string so far.
+            
+            // Let's try to be smart: If the chunk contains code block markers, we might need to filter.
+            // For now, let's send the accumulated message as the "modified code".
+            
+            // Use a regex to strip Markdown wrapping if it looks like a wrapped block
+            let cleanCode = assistantMessage;
+            
+            // Robust extraction: Find ONLY the content inside the LAST incomplete or complete code block
+            // If multiple blocks, usually we want the last one or the one matching "verilog"
+            
+            // Strategy:
+            // 1. Check if there is a ```verilog marker.
+            // 2. If so, extract content after it.
+            // 3. Remove any trailing ``` if present.
+            // 4. If NO code block, assume the whole text is code (fallback), but usually LLM wraps it.
+            
+            const codeBlockMatch = assistantMessage.match(/```(?:verilog)?\n([\s\S]*?)(?:```|$)/);
+            if (codeBlockMatch && codeBlockMatch[1]) {
+                cleanCode = codeBlockMatch[1];
+            } else if (assistantMessage.includes("```")) {
+                 // Maybe the block hasn't started the content yet or is just opening
+                 // Keep cleanCode as is or handle partial state
+            }
+            
+            onStreamCode(cleanCode, isFirstChunk);
+        } else {
+            // Normal Chat Mode
+            if (isFirstChunk) {
+              setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
+            }
+            
+            assistantMessage += chunk;
+            setMessages((prev) => {
+              const newMessages = [...prev];
+              const lastMsg = newMessages[newMessages.length - 1];
+              if (lastMsg.role === "assistant") {
+                lastMsg.content = assistantMessage;
+              }
+              return newMessages;
+            });
+        }
+        isFirstChunk = false;
       }
     } catch (error) {
       console.error("Chat error:", error);
       showErrorToast("Failed to get response from AI.");
-      // Optionally remove the failed message or show an error state
     } finally {
       setIsLoading(false);
+      setIsApplyMode(false);
     }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      handleSendMessage();
+      // Default to normal chat if just pressing enter. 
+      // To do "Apply", we might want a separate button or a modifier key (e.g. Cmd+Enter)
+      if (e.metaKey || e.ctrlKey) {
+          handleSendMessage(true); // Command+Enter to Apply
+      } else {
+          handleSendMessage(false);
+      }
     }
   };
 
@@ -154,7 +225,6 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ editorContent, onSuggestC
       >
         {isOpen && (
           <HStack>
-            <FaRobot color="#4FD1C5" />
             <Text fontWeight="bold" color={textColor} fontSize="sm">
               Verilog AI
             </Text>
@@ -191,6 +261,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ editorContent, onSuggestC
             {messages.length === 0 && (
               <Box textAlign="center" py={10} color="gray.500">
                 <Text>Ask me anything about your Verilog code!</Text>
+                <Text fontSize="xs" mt={2}>ProTip: Cmd+Enter to Edit Code directly</Text>
               </Box>
             )}
 
@@ -229,6 +300,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ editorContent, onSuggestC
                     maxWidth="100%"
                   >
                     {msg.content}
+                    {/* Legacy "Apply Edit" button for chat history items */}
                     {msg.role === "assistant" && msg.content.includes("```verilog") && onSuggestCode && (
                         <Box mt={2}>
                             <IconButton 
@@ -251,7 +323,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ editorContent, onSuggestC
             ))}
 
             {/* Loading Indicator */}
-            {isLoading &&
+            {isLoading && !isApplyMode &&
               (messages.length === 0 ||
                 messages[messages.length - 1].role === "user") && (
                 <Box alignSelf="flex-start" maxW="85%">
@@ -304,6 +376,14 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ editorContent, onSuggestC
                   </HStack>
                 </Box>
               )}
+              
+             {/* Applying to Editor Indicator */}
+             {isLoading && isApplyMode && (
+                 <Box textAlign="center" color="teal.500" fontSize="sm" py={2}>
+                     <Spinner size="xs" mr={2} />
+                     Writing to editor...
+                 </Box>
+             )}
 
             <div ref={messagesEndRef} />
           </VStack>
@@ -315,20 +395,31 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ editorContent, onSuggestC
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyPress={handleKeyPress}
-                placeholder="Type a message..."
+                placeholder="Type message... (Cmd+Enter to Edit)"
                 disabled={isLoading}
                 bg={inputBg}
                 border="none"
                 _focus={{ border: "1px solid teal.500" }}
                 color={textColor}
               />
-              <IconButton
-                aria-label="Send"
-                icon={isLoading ? <Spinner size="sm" /> : <FaPaperPlane />}
-                onClick={handleSendMessage}
-                disabled={isLoading || !input.trim()}
+              <Button
+                size="sm"
                 colorScheme="teal"
-              />
+                isLoading={isLoading}
+                onClick={() => handleSendMessage(false)}
+                mr={1}
+              >
+                  Chat
+              </Button>
+              <Button
+                size="sm"
+                colorScheme="blue"
+                isLoading={isLoading}
+                onClick={() => handleSendMessage(true)}
+                title="Edit Code Directly"
+              >
+                  Edit
+              </Button>
             </HStack>
           </Box>
         </>

@@ -1,4 +1,4 @@
-import { Container, Flex, Image, Input, Text } from "@chakra-ui/react"
+import { Container, Flex, Input, Text } from "@chakra-ui/react"
 import {
   Link as RouterLink,
   createFileRoute,
@@ -14,7 +14,6 @@ import { InputGroup } from "@/components/ui/input-group"
 import { PasswordInput } from "@/components/ui/password-input"
 import useAuth, { isLoggedIn } from "@/hooks/useAuth"
 import { confirmPasswordRules, emailPattern, passwordRules } from "@/utils"
-import Logo from "/assets/images/fastapi-logo.svg"
 
 export const Route = createFileRoute("/signup")({
   component: SignUp,
@@ -66,14 +65,9 @@ function SignUp() {
           gap={4}
           centerContent
         >
-          <Image
-            src={Logo}
-            alt="FastAPI logo"
-            height="auto"
-            maxW="2xs"
-            alignSelf="center"
-            mb={4}
-          />
+          <Text fontSize="2xl" fontWeight="bold" mb={4} textAlign="center">
+            Verilog AI
+          </Text>
           <Field
             invalid={!!errors.full_name}
             errorText={errors.full_name?.message}
