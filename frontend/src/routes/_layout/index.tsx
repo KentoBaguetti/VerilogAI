@@ -1,4 +1,4 @@
-import { Box, Container, Text, Flex } from "@chakra-ui/react"
+import { Box, Flex } from "@chakra-ui/react"
 import { createFileRoute } from "@tanstack/react-router"
 import { useState } from "react"
 
@@ -41,34 +41,24 @@ endmodule
   };
 
   return (
-    <>
-      <Container maxW="full" h="calc(100vh - 100px)">
-        <Box pt={12} m={4} h="full">
-          <Text fontSize="2xl" truncate maxW="sm" mb={4}>
-            Verilog Editor
-          </Text>
+    <Flex h="100vh" w="100vw" overflow="hidden">
+      <Box flex="1" minW="0" h="full">
+        <EditBox 
+          language="verilog" 
+          value={code} 
+          onValueChange={setCode}
+          aiEnabled={true}
           
-          <Flex h="80vh" border="1px solid" borderColor="gray.700" borderRadius="md" overflow="hidden">
-            <Box flex="1" minW="0">
-              <EditBox 
-                language="verilog" 
-                value={code} 
-                onValueChange={setCode}
-                aiEnabled={true}
-                
-                // Diff Mode Props
-                modifiedValue={modifiedCode}
-                onAcceptDiff={handleAcceptDiff}
-                onRejectDiff={handleRejectDiff}
-              />
-            </Box>
-            <ChatInterface 
-                editorContent={code} 
-                onSuggestCode={setModifiedCode}
-            />
-          </Flex>
-        </Box>
-      </Container>
-    </>
+          // Diff Mode Props
+          modifiedValue={modifiedCode}
+          onAcceptDiff={handleAcceptDiff}
+          onRejectDiff={handleRejectDiff}
+        />
+      </Box>
+      <ChatInterface 
+          editorContent={code} 
+          onSuggestCode={setModifiedCode}
+      />
+    </Flex>
   )
 }
