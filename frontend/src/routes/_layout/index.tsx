@@ -29,6 +29,20 @@ endmodule
   
   const [modifiedCode, setModifiedCode] = useState<string | null>(null);
 
+  // Callback for streaming edits
+  const handleStreamCode = (codeChunk: string, isFirstChunk: boolean) => {
+      // If it's the first chunk of a new edit, we might want to clear previous or just overwrite.
+      // Since the backend sends the full generated response incrementally (but as raw chunks of the final text),
+      // we probably need to reconstruct it.
+      // However, if we want "Cursor-like" streaming update in the diff view:
+      // The DiffEditor needs the *full* modified text to show the diff against original.
+      // So we set the modifiedCode to whatever we have accumulated so far.
+      
+      // NOTE: The ChatInterface logic currently accumulates and sends the *full* text so far.
+      // So we just need to update the state.
+      setModifiedCode(codeChunk);
+  };
+
   const handleAcceptDiff = () => {
     if (modifiedCode !== null) {
       setCode(modifiedCode);
@@ -58,6 +72,7 @@ endmodule
       <ChatInterface 
           editorContent={code} 
           onSuggestCode={setModifiedCode}
+          onStreamCode={handleStreamCode}
       />
     </Flex>
   )
