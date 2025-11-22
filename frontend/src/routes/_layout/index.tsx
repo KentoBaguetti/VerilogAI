@@ -26,6 +26,19 @@ function Dashboard() {
 
 endmodule
 `)
+  
+  const [modifiedCode, setModifiedCode] = useState<string | null>(null);
+
+  const handleAcceptDiff = () => {
+    if (modifiedCode !== null) {
+      setCode(modifiedCode);
+      setModifiedCode(null);
+    }
+  };
+
+  const handleRejectDiff = () => {
+    setModifiedCode(null);
+  };
 
   return (
     <>
@@ -42,9 +55,17 @@ endmodule
                 value={code} 
                 onValueChange={setCode}
                 aiEnabled={true}
+                
+                // Diff Mode Props
+                modifiedValue={modifiedCode}
+                onAcceptDiff={handleAcceptDiff}
+                onRejectDiff={handleRejectDiff}
               />
             </Box>
-            <ChatInterface editorContent={code} />
+            <ChatInterface 
+                editorContent={code} 
+                onSuggestCode={setModifiedCode}
+            />
           </Flex>
         </Box>
       </Container>

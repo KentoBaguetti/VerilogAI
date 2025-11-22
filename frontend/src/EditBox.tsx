@@ -1,8 +1,10 @@
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import axios from "axios";
-import Editor, { OnMount } from "@monaco-editor/react";
+import Editor, { DiffEditor, OnMount } from "@monaco-editor/react";
 import { useMonaco } from "@monaco-editor/react";
 import * as monacoEditor from "monaco-editor";
+import { Box, Button, HStack, Text } from "@chakra-ui/react";
+import { FaCheck, FaTimes } from "react-icons/fa";
 
 import { useColorMode } from "./components/ui/color-mode.tsx";
 import { CompletionFormatter } from "./components/editor/completion-formatter";
@@ -14,6 +16,11 @@ interface TextEditorProps {
   height?: string;
   aiEnabled?: boolean;
   onValueChange?: (newValue: string) => void;
+  
+  // Diff Mode Props
+  modifiedValue?: string | null;
+  onAcceptDiff?: () => void;
+  onRejectDiff?: () => void;
 }
 
 const EditBox: React.FC<TextEditorProps> = ({
@@ -23,6 +30,9 @@ const EditBox: React.FC<TextEditorProps> = ({
   height = "100%",
   aiEnabled = false,
   onValueChange,
+  modifiedValue = null,
+  onAcceptDiff,
+  onRejectDiff,
 }) => {
   const monaco = useMonaco();
   const { colorMode } = useColorMode();
@@ -89,6 +99,8 @@ const EditBox: React.FC<TextEditorProps> = ({
           range: {
             startLineNumber: pos.lineNumber,
             startColumn: pos.column,
+            endLineNumber: pos.lineNumber,
+            endColumn: pos.column,
             endLineNumber: pos.lineNumber,
             endColumn: pos.column,
           },
@@ -209,6 +221,59 @@ const EditBox: React.FC<TextEditorProps> = ({
     });
   };
 
+  // If in diff mode, render DiffEditor with overlay buttons
+  if (modifiedValue !== null) {
+    return (
+      <Box position="relative" h={height} w="100%">
+         {/* Control Bar */}
+        <HStack 
+          position="absolute" 
+          top={2} 
+          right={4} 
+          zIndex={10} 
+          bg="gray.800" 
+          p={1} 
+          borderRadius="md" 
+          boxShadow="lg"
+          spacing={2}
+        >
+            <Text color="white" fontSize="xs" px={2} fontWeight="bold">Review Changes</Text>
+            <Button 
+                size="xs" 
+                colorScheme="green" 
+                leftIcon={<FaCheck />} 
+                onClick={onAcceptDiff}
+            >
+                Accept
+            </Button>
+            <Button 
+                size="xs" 
+                colorScheme="red" 
+                leftIcon={<FaTimes />} 
+                onClick={onRejectDiff}
+            >
+                Reject
+            </Button>
+        </HStack>
+
+        <DiffEditor
+          height="100%"
+          width="100%"
+          language={language}
+          original={value}
+          modified={modifiedValue}
+          theme={colorMode === "dark" ? "vs-dark" : "vs"}
+          options={{
+            renderSideBySide: true,
+            readOnly: true,
+            originalEditable: false,
+            diffWordWrap: "off",
+          }}
+        />
+      </Box>
+    );
+  }
+
   return (
     <Editor
       height={height}
@@ -234,4 +299,3 @@ const EditBox: React.FC<TextEditorProps> = ({
 };
 
 export default EditBox;
-

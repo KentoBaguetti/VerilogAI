@@ -27,6 +27,7 @@ interface ChatMessage {
 
 interface ChatInterfaceProps {
   editorContent: string;
+  onSuggestCode?: (code: string) => void;
 }
 
 const bounce = keyframes`
@@ -34,7 +35,7 @@ const bounce = keyframes`
   50% { transform: translateY(-5px); }
 `;
 
-const ChatInterface: React.FC<ChatInterfaceProps> = ({ editorContent }) => {
+const ChatInterface: React.FC<ChatInterfaceProps> = ({ editorContent, onSuggestCode }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -228,6 +229,22 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ editorContent }) => {
                     maxWidth="100%"
                   >
                     {msg.content}
+                    {msg.role === "assistant" && msg.content.includes("```verilog") && onSuggestCode && (
+                        <Box mt={2}>
+                            <IconButton 
+                                aria-label="Apply Changes" 
+                                size="xs" 
+                                colorScheme="teal" 
+                                icon={<Text fontSize="xs" px={1}>Apply Edit</Text>}
+                                onClick={() => {
+                                    const match = msg.content.match(/```verilog\n([\s\S]*?)\n```/);
+                                    if (match && match[1]) {
+                                        onSuggestCode(match[1]);
+                                    }
+                                }}
+                            />
+                        </Box>
+                    )}
                   </Box>
                 </HStack>
               </Box>
