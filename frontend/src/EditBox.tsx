@@ -11,6 +11,7 @@ interface TextEditorProps {
   language: "verilog";
   cacheSize?: number;
   value: string;
+  height?: string;
   aiEnabled?: boolean;
   onValueChange?: (newValue: string) => void;
 }
@@ -19,6 +20,7 @@ const EditBox: React.FC<TextEditorProps> = ({
   language,
   cacheSize = 10,
   value,
+  height = "100%",
   aiEnabled = false,
   onValueChange,
 }) => {
@@ -209,11 +211,11 @@ const EditBox: React.FC<TextEditorProps> = ({
 
   return (
     <Editor
-      height="90vh"
+      height={height}
       width="100%"
       language={language}
       value={value}
-      theme={colorMode === "dark" ? "vs" : "vs-dark"}
+      theme={colorMode === "dark" ? "vs-dark" : "vs"}
       onMount={handleMount}
       options={{
         autoClosingBrackets: "always",

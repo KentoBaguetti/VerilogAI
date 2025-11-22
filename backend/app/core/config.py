@@ -18,6 +18,8 @@ from typing_extensions import Self
 
 def parse_cors(v: Any) -> list[str] | str:
     if isinstance(v, str) and not v.startswith("["):
+        if not v.strip():
+            return []
         return [i.strip() for i in v.split(",")]
     elif isinstance(v, list | str):
         return v
@@ -40,7 +42,7 @@ class Settings(BaseSettings):
 
     BACKEND_CORS_ORIGINS: Annotated[
         list[AnyUrl] | str, BeforeValidator(parse_cors)
-    ] = []
+    ] = ["http://localhost:5173", "http://localhost:3000"]
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -99,6 +101,9 @@ class Settings(BaseSettings):
     VERTEX_PROJECT_NUMBER: str = "556201303018"
     VERTEX_LOCATION: str = "us-central1"
     VERTEX_ENDPOINT_ID: str = "6095566020552949760"
+
+    # OpenAI Configuration
+    OPENAI_API_KEY: str | None = None
 
     def _check_default_secret(self, var_name: str, value: str | None) -> None:
         if value == "changethis":

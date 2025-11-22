@@ -2,8 +2,10 @@ from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
+import os
+from openai import OpenAI
 
-from app.core.llm import stream_vertex_ai
+from app.core.config import settings
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -22,6 +24,27 @@ class ChatRequest(BaseModel):
     messages: List[ChatMessage]
     context: Optional[ChatContext] = None
 
+def stream_openai(messages: List[Dict[str, str]]):
+    if not settings.OPENAI_API_KEY:
+        yield "\n[Error: OPENAI_API_KEY is not set in the backend environment. Please add it to your .env file.]"
+        return
+
+    client = OpenAI(api_key=settings.OPENAI_API_KEY)
+    
+    try:
+        stream = client.chat.completions.create(
+            model="gpt-4o",
+            messages=messages,
+            stream=True,
+        )
+        
+        for chunk in stream:
+            if chunk.choices[0].delta.content is not None:
+                yield chunk.choices[0].delta.content
+
+    except Exception as e:
+        yield f"\n[Error: {str(e)}]"
+
 @router.post("/stream")
 def chat_stream(req: ChatRequest):
     # Build the messages list
@@ -38,18 +61,15 @@ def chat_stream(req: ChatRequest):
         system_content += f"\nCurrent Code Content:\n```verilog\n{req.context.code}\n```\n"
         
         if req.context.selection:
-             system_content += f"\nSelected Code:\n```verilog\n{req.context.selection}\n```\n"
+            system_content += f"\nSelected Code:\n```verilog\n{req.context.selection}\n```\n"
     
-    # Some models prefer system prompt as the first message with role 'system'
-    # If the model doesn't support 'system', this might need to be merged into the first user message.
-    # We will try 'system' role first.
     final_messages.append({"role": "system", "content": system_content})
     
     for msg in req.messages:
         final_messages.append(msg.model_dump())
 
     return StreamingResponse(
-        stream_vertex_ai(final_messages),
+        stream_openai(final_messages),
         media_type="text/event-stream"
     )
 
