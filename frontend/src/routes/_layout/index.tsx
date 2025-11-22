@@ -1,23 +1,51 @@
-import { Box, Container, Text } from "@chakra-ui/react"
+import { Box, Container, Text, Flex } from "@chakra-ui/react"
 import { createFileRoute } from "@tanstack/react-router"
+import { useState } from "react"
 
-import useAuth from "@/hooks/useAuth"
+import EditBox from "@/EditBox"
+import ChatInterface from "@/components/editor/ChatInterface"
 
 export const Route = createFileRoute("/_layout/")({
   component: Dashboard,
 })
 
 function Dashboard() {
-  const { user: currentUser } = useAuth()
+  const [code, setCode] = useState(`module top(
+    input clk,
+    input rst_n,
+    output reg [7:0] led
+);
+
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            led <= 8'h00;
+        end else begin
+            led <= led + 1;
+        end
+    end
+
+endmodule
+`)
 
   return (
     <>
-      <Container maxW="full">
-        <Box pt={12} m={4}>
-          <Text fontSize="2xl" truncate maxW="sm">
-            Hi, {currentUser?.full_name || currentUser?.email} 👋🏼
+      <Container maxW="full" h="calc(100vh - 100px)">
+        <Box pt={12} m={4} h="full">
+          <Text fontSize="2xl" truncate maxW="sm" mb={4}>
+            Verilog Editor
           </Text>
-          <Text>Welcome back, nice to see you again!</Text>
+          
+          <Flex h="80vh" border="1px solid" borderColor="gray.700" borderRadius="md" overflow="hidden">
+            <Box flex="1" minW="0">
+              <EditBox 
+                language="verilog" 
+                value={code} 
+                onValueChange={setCode}
+                aiEnabled={true}
+              />
+            </Box>
+            <ChatInterface editorContent={code} />
+          </Flex>
         </Box>
       </Container>
     </>
