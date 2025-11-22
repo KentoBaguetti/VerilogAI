@@ -95,6 +95,11 @@ class Settings(BaseSettings):
     FIRST_SUPERUSER: EmailStr | None = None
     FIRST_SUPERUSER_PASSWORD: str | None = None
 
+    # Vertex AI Configuration
+    VERTEX_PROJECT_NUMBER: str = "556201303018"
+    VERTEX_LOCATION: str = "us-central1"
+    VERTEX_ENDPOINT_ID: str = "6095566020552949760"
+
     def _check_default_secret(self, var_name: str, value: str | None) -> None:
         if value == "changethis":
             message = (
