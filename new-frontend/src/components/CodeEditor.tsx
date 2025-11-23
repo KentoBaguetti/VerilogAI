@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from "react";
-import Editor, { OnMount, useMonaco } from "@monaco-editor/react";
+import Editor, { OnMount, useMonaco, DiffEditor } from "@monaco-editor/react";
 import * as monaco from "monaco-editor";
 import {
     verilogSnippets,
@@ -16,6 +16,9 @@ interface CodeEditorProps {
     aiEnabled?: boolean;
     apiUrl?: string;
     theme?: "vs" | "vs-dark";
+    proposedCode?: string | null;
+    onAcceptProposal?: () => void;
+    onRejectProposal?: () => void;
 }
 
 interface CompletionItem {
@@ -37,6 +40,9 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
     aiEnabled = false,
     apiUrl = "http://localhost:8000",
     theme = "vs",
+    proposedCode = null,
+    onAcceptProposal,
+    onRejectProposal,
 }) => {
     const monacoInstance = useMonaco();
     const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
@@ -376,6 +382,59 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
             }
         });
     };
+
+    // If we have proposed code, show diff view
+    if (proposedCode) {
+        return (
+            <div className="flex-1 h-full relative">
+                {/* Control Bar for Diff */}
+                <div className="absolute top-4 right-4 z-50 flex gap-2 bg-white rounded-lg shadow-lg p-2 border"
+                     style={{ borderColor: "#D4C4A8" }}>
+                    <span className="text-sm font-medium text-ink px-2 py-1">Review Changes</span>
+                    <button
+                        onClick={onAcceptProposal}
+                        className="px-4 py-1.5 rounded-md text-white font-medium text-sm flex items-center gap-2 transition-all hover:scale-105"
+                        style={{ background: "#8B9A7E" }}
+                    >
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                            <path d="M13.78 4.22a.75.75 0 010 1.06l-7.25 7.25a.75.75 0 01-1.06 0L2.22 9.28a.75.75 0 011.06-1.06L6 10.94l6.72-6.72a.75.75 0 011.06 0z"/>
+                        </svg>
+                        Accept
+                    </button>
+                    <button
+                        onClick={onRejectProposal}
+                        className="px-4 py-1.5 rounded-md text-white font-medium text-sm flex items-center gap-2 transition-all hover:scale-105"
+                        style={{ background: "#C85C3C" }}
+                    >
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                            <path d="M3.72 3.72a.75.75 0 011.06 0L8 6.94l3.22-3.22a.75.75 0 111.06 1.06L9.06 8l3.22 3.22a.75.75 0 11-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 01-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 010-1.06z"/>
+                        </svg>
+                        Reject
+                    </button>
+                </div>
+
+                <DiffEditor
+                    height="100%"
+                    language={language}
+                    original={value}
+                    modified={proposedCode}
+                    theme={theme}
+                    options={{
+                        fontSize: 14,
+                        fontFamily: "'JetBrains Mono', monospace",
+                        minimap: { enabled: false },
+                        lineNumbers: "on",
+                        scrollBeyondLastLine: false,
+                        automaticLayout: true,
+                        padding: { top: 16, bottom: 16 },
+                        readOnly: true,
+                        renderSideBySide: true,
+                        diffWordWrap: "on",
+                    }}
+                />
+            </div>
+        );
+    }
 
     return (
         <div className="flex-1 h-full relative">

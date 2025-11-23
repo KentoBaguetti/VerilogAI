@@ -120,6 +120,8 @@ endmodule`,
     const [aiEnabled, setAiEnabled] = useState(true); // AI autocomplete enabled by default
     const [apiUrl, setApiUrl] = useState("http://localhost:8000"); // Default API URL
     const [isLoadingChat, setIsLoadingChat] = useState(false);
+    const [isAgenticMode, setIsAgenticMode] = useState(false);
+    const [proposedCode, setProposedCode] = useState<string | null>(null);
 
     const getLanguageFromFilename = (filename: string): string => {
         const extension = filename.split(".").pop()?.toLowerCase();
@@ -337,14 +339,41 @@ endmodule`,
         setExpanded((prev) => ({ ...prev, [path]: !prev[path] }));
     };
 
-    const handleSendMessage = async () => {
+    // Extract code blocks from markdown
+    const extractCodeFromMarkdown = (text: string): string | null => {
+        // Match code blocks with optional language specifier
+        const codeBlockRegex = /```(?:verilog|systemverilog|v|sv)?\s*\n([\s\S]*?)```/;
+        const match = text.match(codeBlockRegex);
+        
+        if (match && match[1]) {
+            return match[1].trim();
+        }
+        
+        // If no code block found, check if the entire response looks like code
+        const lines = text.trim().split('\n');
+        const hasVerilogKeywords = /\b(module|endmodule|always|assign|wire|reg|input|output|begin|end)\b/.test(text);
+        
+        if (hasVerilogKeywords && lines.length > 2) {
+            return text.trim();
+        }
+        
+        return null;
+    };
+
+    const handleSendMessage = async (isAgentic: boolean = false) => {
         if (!inputValue.trim() || isLoadingChat) return;
+        
+        // Agentic mode requires a file to be open
+        if (isAgentic && !selectedFile) {
+            return;
+        }
 
         const userMessage: Message = { role: "user", content: inputValue };
         const updatedMessages = [...messages, userMessage];
         setMessages(updatedMessages);
         setInputValue("");
         setIsLoadingChat(true);
+        setIsAgenticMode(isAgentic);
 
         // Add empty assistant message that will be filled with streaming content
         const assistantMessageIndex = updatedMessages.length;
@@ -364,6 +393,15 @@ endmodule`,
             
             await streamChatResponse(updatedMessages, context, (chunk) => {
                 fullResponse += chunk;
+                
+                if (isAgentic) {
+                    // In agentic mode, try to extract code as we stream
+                    const extractedCode = extractCodeFromMarkdown(fullResponse);
+                    if (extractedCode) {
+                        setProposedCode(extractedCode);
+                    }
+                }
+                
                 setMessages((prev) => {
                     const newMessages = [...prev];
                     newMessages[assistantMessageIndex] = {
@@ -373,6 +411,34 @@ endmodule`,
                     return newMessages;
                 });
             });
+            
+            // After streaming completes, finalize agentic mode
+            if (isAgentic) {
+                const extractedCode = extractCodeFromMarkdown(fullResponse);
+                if (extractedCode) {
+                    setProposedCode(extractedCode);
+                    
+                    // Update the message to show it's been applied
+                    setMessages((prev) => {
+                        const newMessages = [...prev];
+                        newMessages[assistantMessageIndex] = {
+                            role: "assistant",
+                            content: `✨ **Code changes proposed**\n\nI've suggested changes to \`${selectedFile}\`. Review the diff and accept or reject the changes.\n\n---\n\n${fullResponse}`,
+                        };
+                        return newMessages;
+                    });
+                } else {
+                    // No code found, just show the response normally
+                    setMessages((prev) => {
+                        const newMessages = [...prev];
+                        newMessages[assistantMessageIndex] = {
+                            role: "assistant",
+                            content: `⚠️ No code changes detected in response.\n\n${fullResponse}`,
+                        };
+                        return newMessages;
+                    });
+                }
+            }
         } catch (error) {
             console.error("Chat error:", error);
             setMessages((prev) => {
@@ -385,6 +451,7 @@ endmodule`,
             });
         } finally {
             setIsLoadingChat(false);
+            setIsAgenticMode(false);
         }
     };
 
@@ -475,6 +542,36 @@ endmodule`,
         }
     };
 
+    const handleAcceptProposedCode = () => {
+        if (proposedCode && selectedFile) {
+            setCurrentContent(proposedCode);
+            updateFileContent(selectedFile, proposedCode);
+            setProposedCode(null);
+            
+            // Add a confirmation message to chat
+            setMessages((prev) => [
+                ...prev,
+                {
+                    role: "assistant",
+                    content: "✅ Changes accepted and applied to the file.",
+                },
+            ]);
+        }
+    };
+
+    const handleRejectProposedCode = () => {
+        setProposedCode(null);
+        
+        // Add a confirmation message to chat
+        setMessages((prev) => [
+            ...prev,
+            {
+                role: "assistant",
+                content: "❌ Changes rejected. The original code remains unchanged.",
+            },
+        ]);
+    };
+
     if (!started) {
         return <LandingPage onStart={() => setStarted(true)} />;
     }
@@ -515,6 +612,9 @@ endmodule`,
                             aiEnabled={aiEnabled}
                             apiUrl={apiUrl}
                             theme="vs"
+                            proposedCode={proposedCode}
+                            onAcceptProposal={handleAcceptProposedCode}
+                            onRejectProposal={handleRejectProposedCode}
                         />
                     ) : (
                         <div className="flex-1 flex items-center justify-center text-ink opacity-50">
@@ -532,6 +632,7 @@ endmodule`,
                     onSendMessage={handleSendMessage}
                     width={chatWidth}
                     isLoading={isLoadingChat}
+                    hasFileOpen={selectedFile !== null}
                 />
             </div>
         </div>
