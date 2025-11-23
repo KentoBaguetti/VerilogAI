@@ -27,7 +27,7 @@ const Header: React.FC<HeaderProps> = ({
         >
             <div className="flex items-center gap-4">
                 <h1 className="font-serif text-2xl font-bold text-ink">
-                    Atelier
+                    ArchiTECH
                 </h1>
                 <span className="text-sm text-ink opacity-50">
                     {selectedFile
@@ -42,7 +42,7 @@ const Header: React.FC<HeaderProps> = ({
                         onClick={onToggleAI}
                         className={`flex items-center gap-2 px-4 py-2 rounded-md transition-all hover:scale-105 ${
                             aiEnabled
-                                ? "bg-rust text-white"
+                                ? "bg-rust text-black"
                                 : "bg-sand text-ink"
                         }`}
                         title={
@@ -73,7 +73,7 @@ const Header: React.FC<HeaderProps> = ({
 
                 <button
                     onClick={() => fileInputRef.current?.click()}
-                    className="flex items-center gap-2 px-4 py-2 rounded-md transition-all hover:scale-105 bg-sage text-white"
+                    className="flex items-center gap-2 px-4 py-2 rounded-md transition-all hover:scale-105 bg-sage text-black"
                     title="Upload File"
                 >
                     <UploadIcon />
@@ -88,7 +88,7 @@ const Header: React.FC<HeaderProps> = ({
                 <button
                     onClick={onDownload}
                     disabled={!selectedFile}
-                    className="flex items-center gap-2 px-4 py-2 rounded-md transition-all hover:scale-105 disabled:opacity-50 bg-sage text-white"
+                    className="flex items-center gap-2 px-4 py-2 rounded-md transition-all hover:scale-105 disabled:opacity-50 bg-sage text-black"
                     title="Download File"
                 >
                     <DownloadIcon />
@@ -97,7 +97,7 @@ const Header: React.FC<HeaderProps> = ({
                 <button
                     onClick={onSaveVersion}
                     disabled={!selectedFile}
-                    className="flex items-center gap-2 px-4 py-2 rounded-md transition-all hover:scale-105 disabled:opacity-50 bg-rust text-white"
+                    className="flex items-center gap-2 px-4 py-2 rounded-md transition-all hover:scale-105 disabled:opacity-50 bg-rust text-black"
                     title="Save Version"
                 >
                     <HistoryIcon />

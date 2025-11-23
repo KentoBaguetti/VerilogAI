@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import LandingPage from "./components/LandingPage";
 import Header from "./components/Header";
 import Sidebar from "./components/Sidebar";
-import ChatSidebar from "./components/ChatSiderbar";
+import ChatSidebar from "./components/ChatSidebar";
 import CodeEditor from "./components/CodeEditor";
 import Resizer from "./components/Resizer";
 import type { FileItem, Message, Version, ExpandedState } from "./types";
@@ -73,7 +73,30 @@ endmodule`,
     const getLanguageFromFilename = (filename: string): string => {
         const extension = filename.split(".").pop()?.toLowerCase();
         const languageMap: { [key: string]: string } = {
-            v: "verilog",
+            ts: "typescript",
+            tsx: "typescript",
+            js: "javascript",
+            jsx: "javascript",
+            json: "json",
+            html: "html",
+            css: "css",
+            scss: "scss",
+            md: "markdown",
+            py: "python",
+            java: "java",
+            cpp: "cpp",
+            c: "c",
+            cs: "csharp",
+            go: "go",
+            rs: "rust",
+            php: "php",
+            rb: "ruby",
+            swift: "swift",
+            kt: "kotlin",
+            sql: "sql",
+            xml: "xml",
+            yaml: "yaml",
+            yml: "yaml",
         };
         return languageMap[extension || ""] || "plaintext";
     };
@@ -107,6 +130,145 @@ endmodule`,
             });
         };
         setFiles(updateFiles(files));
+    };
+
+    // Create a new file in a folder
+    const handleCreateFile = (folderPath: string) => {
+        const fileName = prompt("Enter file name:");
+        if (!fileName) return;
+
+        // Validate filename
+        if (!/^[a-zA-Z0-9_.-]+$/.test(fileName)) {
+            alert(
+                "Invalid file name. Use only letters, numbers, dots, dashes, and underscores."
+            );
+            return;
+        }
+
+        const newFile: FileItem = {
+            name: fileName,
+            type: "file",
+            path:
+                folderPath === "/"
+                    ? `/${fileName}`
+                    : `${folderPath}/${fileName}`,
+            content: "",
+        };
+
+        const addFile = (items: FileItem[]): FileItem[] => {
+            return items.map((item) => {
+                if (item.path === folderPath && item.type === "folder") {
+                    const children = item.children || [];
+                    // Check for duplicate names
+                    if (children.some((child) => child.name === fileName)) {
+                        alert("A file with this name already exists!");
+                        return item;
+                    }
+                    return { ...item, children: [...children, newFile] };
+                }
+                if (item.children) {
+                    return { ...item, children: addFile(item.children) };
+                }
+                return item;
+            });
+        };
+
+        // Handle root level
+        if (folderPath === "/") {
+            if (files.some((item) => item.name === fileName)) {
+                alert("A file with this name already exists!");
+                return;
+            }
+            setFiles([...files, newFile]);
+        } else {
+            setFiles(addFile(files));
+        }
+
+        // Expand the parent folder
+        setExpanded((prev) => ({ ...prev, [folderPath]: true }));
+    };
+
+    // Create a new folder
+    const handleCreateFolder = (folderPath: string) => {
+        const folderName = prompt("Enter folder name:");
+        if (!folderName) return;
+
+        // Validate folder name
+        if (!/^[a-zA-Z0-9_-]+$/.test(folderName)) {
+            alert(
+                "Invalid folder name. Use only letters, numbers, dashes, and underscores."
+            );
+            return;
+        }
+
+        const newFolder: FileItem = {
+            name: folderName,
+            type: "folder",
+            path:
+                folderPath === "/"
+                    ? `/${folderName}`
+                    : `${folderPath}/${folderName}`,
+            children: [],
+        };
+
+        const addFolder = (items: FileItem[]): FileItem[] => {
+            return items.map((item) => {
+                if (item.path === folderPath && item.type === "folder") {
+                    const children = item.children || [];
+                    // Check for duplicate names
+                    if (children.some((child) => child.name === folderName)) {
+                        alert("A folder with this name already exists!");
+                        return item;
+                    }
+                    return { ...item, children: [...children, newFolder] };
+                }
+                if (item.children) {
+                    return { ...item, children: addFolder(item.children) };
+                }
+                return item;
+            });
+        };
+
+        // Handle root level
+        if (folderPath === "/") {
+            if (files.some((item) => item.name === folderName)) {
+                alert("A folder with this name already exists!");
+                return;
+            }
+            setFiles([...files, newFolder]);
+        } else {
+            setFiles(addFolder(files));
+        }
+
+        // Expand the parent folder and the new folder
+        setExpanded((prev) => ({
+            ...prev,
+            [folderPath]: true,
+            [newFolder.path]: true,
+        }));
+    };
+
+    // Delete a file or folder
+    const handleDeleteFile = (path: string) => {
+        const deleteItem = (items: FileItem[]): FileItem[] => {
+            return items.filter((item) => {
+                if (item.path === path) {
+                    return false; // Remove this item
+                }
+                if (item.children) {
+                    item.children = deleteItem(item.children);
+                }
+                return true;
+            });
+        };
+
+        setFiles(deleteItem(files));
+
+        // If the deleted file was selected, clear selection
+        if (selectedFile === path) {
+            setSelectedFile(null);
+            setCurrentContent("");
+        }
     };
 
     const handleFileSelect = (file: FileItem) => {
@@ -253,6 +415,9 @@ endmodule`,
                     expanded={expanded}
                     versions={versions}
                     width={sidebarWidth}
+                    onDeleteFile={handleDeleteFile}
+                    onCreateFile={handleCreateFile}
+                    onCreateFolder={handleCreateFolder}
                 />
 
                 <Resizer onResize={(e) => handleResize(e, "sidebar")} />

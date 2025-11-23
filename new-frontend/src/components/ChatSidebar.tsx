@@ -89,7 +89,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
                     <button
                         onClick={onSendMessage}
                         disabled={!inputValue.trim()}
-                        className="px-4 py-3 rounded-lg transition-all hover:scale-105 disabled:opacity-50 bg-rust text-white"
+                        className="px-4 py-3 rounded-lg transition-all hover:scale-105 disabled:opacity-50 bg-rust text-black"
                     >
                         <SendIcon />
                     </button>

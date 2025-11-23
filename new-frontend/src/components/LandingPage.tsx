@@ -22,7 +22,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart }) => {
                         opacity: 0,
                     }}
                 >
-                    VerilogAI
+                    ArchiTECH
                 </h1>
                 <p
                     className="text-xl mb-4 animate-fadeInUp"

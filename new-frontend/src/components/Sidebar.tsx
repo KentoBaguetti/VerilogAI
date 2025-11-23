@@ -1,6 +1,7 @@
 import React from "react";
-import { FileItem, ExpandedState, Version } from "../types";
+import type { FileItem, ExpandedState, Version } from "../types";
 import FileTreeItem from "./FileTreeItem";
+import { PlusIcon, FolderPlusIcon } from "./Icons";
 
 interface SidebarProps {
     files: FileItem[];
@@ -10,6 +11,9 @@ interface SidebarProps {
     expanded: ExpandedState;
     versions: Version[];
     width: number;
+    onDeleteFile?: (path: string) => void;
+    onCreateFile?: (folderPath: string) => void;
+    onCreateFolder?: (folderPath: string) => void;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
@@ -20,6 +24,9 @@ const Sidebar: React.FC<SidebarProps> = ({
     expanded,
     versions,
     width,
+    onDeleteFile,
+    onCreateFile,
+    onCreateFolder,
 }) => {
     return (
         <div
@@ -30,10 +37,26 @@ const Sidebar: React.FC<SidebarProps> = ({
             }}
         >
             <div
-                className="px-4 py-3 border-b"
+                className="px-4 py-3 border-b flex items-center justify-between"
                 style={{ borderColor: "rgba(42, 37, 32, 0.08)" }}
             >
                 <h2 className="text-sm font-semibold text-ink">Files</h2>
+                <div className="flex items-center gap-1">
+                    <button
+                        onClick={() => onCreateFile?.("/")}
+                        className="p-1.5 rounded hover:bg-sand transition-colors"
+                        title="New File"
+                    >
+                        <PlusIcon className="w-4 h-4 text-ink" />
+                    </button>
+                    <button
+                        onClick={() => onCreateFolder?.("/")}
+                        className="p-1.5 rounded hover:bg-sand transition-colors"
+                        title="New Folder"
+                    >
+                        <FolderPlusIcon className="w-4 h-4 text-ink" />
+                    </button>
+                </div>
             </div>
             <div className="flex-1 overflow-y-auto p-2">
                 {files.map((item, idx) => (
@@ -44,6 +67,9 @@ const Sidebar: React.FC<SidebarProps> = ({
                         selectedFile={selectedFile}
                         onToggle={onToggle}
                         expanded={expanded}
+                        onDelete={onDeleteFile}
+                        onCreateFile={onCreateFile}
+                        onCreateFolder={onCreateFolder}
                     />
                 ))}
             </div>

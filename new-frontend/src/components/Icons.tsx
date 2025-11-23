@@ -186,3 +186,87 @@ export const HistoryIcon: React.FC<{ className?: string }> = ({
         />
     </svg>
 );
+
+export const PlusIcon: React.FC<{ className?: string }> = ({ className }) => (
+    <svg
+        className={className}
+        width="16"
+        height="16"
+        viewBox="0 0 16 16"
+        fill="none"
+        stroke="currentColor"
+    >
+        <path
+            d="M8 3V13M3 8H13"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+        />
+    </svg>
+);
+
+export const TrashIcon: React.FC<{ className?: string }> = ({ className }) => (
+    <svg
+        className={className}
+        width="16"
+        height="16"
+        viewBox="0 0 16 16"
+        fill="none"
+        stroke="currentColor"
+    >
+        <path
+            d="M2 4H14M12.5 4V13C12.5 13.8284 11.8284 14.5 11 14.5H5C4.17157 14.5 3.5 13.8284 3.5 13V4M5.5 4V2.5C5.5 1.94772 5.94772 1.5 6.5 1.5H9.5C10.0523 1.5 10.5 1.94772 10.5 2.5V4"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+        />
+        <path
+            d="M6.5 7V11.5M9.5 7V11.5"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+        />
+    </svg>
+);
+
+export const FolderPlusIcon: React.FC<{ className?: string }> = ({
+    className,
+}) => (
+    <svg
+        className={className}
+        width="16"
+        height="16"
+        viewBox="0 0 16 16"
+        fill="none"
+        stroke="currentColor"
+    >
+        <path
+            d="M2 3.5C2 2.67157 2.67157 2 3.5 2H6L7.5 4H12.5C13.3284 4 14 4.67157 14 5.5V12.5C14 13.3284 13.3284 14 12.5 14H3.5C2.67157 14 2 13.3284 2 12.5V3.5Z"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+        />
+        <path
+            d="M8 7V11M6 9H10"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+        />
+    </svg>
+);
+
+export const MoreVerticalIcon: React.FC<{ className?: string }> = ({
+    className,
+}) => (
+    <svg
+        className={className}
+        width="16"
+        height="16"
+        viewBox="0 0 16 16"
+        fill="currentColor"
+    >
+        <circle cx="8" cy="3" r="1.5" />
+        <circle cx="8" cy="8" r="1.5" />
+        <circle cx="8" cy="13" r="1.5" />
+    </svg>
+);
