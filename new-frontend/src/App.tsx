@@ -5,6 +5,7 @@ import Sidebar from "./components/Sidebar";
 import ChatSidebar from "./components/ChatSidebar";
 import CodeEditor from "./components/CodeEditor";
 import Resizer from "./components/Resizer";
+import CreateFileModal from "./components/CreateFileModal";
 import type { FileItem, Message, Version, ExpandedState } from "./types";
 
 interface ChatContext {
@@ -125,6 +126,13 @@ endmodule`,
   const [isAgenticMode, setIsAgenticMode] = useState(false);
   const [proposedCode, setProposedCode] = useState<string | null>(null);
 
+  // File creation modal state
+  const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [createModalType, setCreateModalType] = useState<"file" | "folder">(
+    "file"
+  );
+  const [createModalPath, setCreateModalPath] = useState("/");
+
   const getLanguageFromFilename = (filename: string): string => {
     const extension = filename.split(".").pop()?.toLowerCase();
     const languageMap: { [key: string]: string } = {
@@ -189,18 +197,23 @@ endmodule`,
     setFiles(updateFiles(files));
   };
 
-  // Create a new file in a folder
+  // Open modal to create a new file
   const handleCreateFile = (folderPath: string) => {
-    const fileName = prompt("Enter file name:");
-    if (!fileName) return;
+    setCreateModalPath(folderPath);
+    setCreateModalType("file");
+    setCreateModalOpen(true);
+  };
 
-    // Validate filename
-    if (!/^[a-zA-Z0-9_.-]+$/.test(fileName)) {
-      alert(
-        "Invalid file name. Use only letters, numbers, dots, dashes, and underscores."
-      );
-      return;
-    }
+  // Open modal to create a new folder
+  const handleCreateFolder = (folderPath: string) => {
+    setCreateModalPath(folderPath);
+    setCreateModalType("folder");
+    setCreateModalOpen(true);
+  };
+
+  // Actually create the file
+  const executeCreateFile = (fileName: string) => {
+    const folderPath = createModalPath;
 
     const newFile: FileItem = {
       name: fileName,
@@ -240,20 +253,16 @@ endmodule`,
 
     // Expand the parent folder
     setExpanded((prev) => ({ ...prev, [folderPath]: true }));
+
+    // Auto-select the newly created file
+    setSelectedFile(newFile.path);
+    setCurrentContent("");
+    setCurrentLanguage(getLanguageFromFilename(fileName));
   };
 
-  // Create a new folder
-  const handleCreateFolder = (folderPath: string) => {
-    const folderName = prompt("Enter folder name:");
-    if (!folderName) return;
-
-    // Validate folder name
-    if (!/^[a-zA-Z0-9_-]+$/.test(folderName)) {
-      alert(
-        "Invalid folder name. Use only letters, numbers, dashes, and underscores."
-      );
-      return;
-    }
+  // Actually create the folder
+  const executeCreateFolder = (folderName: string) => {
+    const folderPath = createModalPath;
 
     const newFolder: FileItem = {
       name: folderName,
@@ -666,6 +675,17 @@ endmodule`,
           hasFileOpen={selectedFile !== null}
         />
       </div>
+
+      {/* File/Folder Creation Modal */}
+      <CreateFileModal
+        isOpen={createModalOpen}
+        type={createModalType}
+        folderPath={createModalPath}
+        onClose={() => setCreateModalOpen(false)}
+        onCreate={
+          createModalType === "file" ? executeCreateFile : executeCreateFolder
+        }
+      />
     </div>
   );
 };
