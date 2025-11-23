@@ -565,6 +565,14 @@ endmodule`,
 
     setIsGeneratingTB(true);
 
+    // Add "generating" message to chat
+    const generatingMessage: Message = {
+      role: "assistant",
+      content:
+        "🔄 **Generating testbench...**\n\nAnalyzing your module and creating a comprehensive testbench. This may take a few seconds.",
+    };
+    setMessages((prev) => [...prev, generatingMessage]);
+
     try {
       // Call backend API
       const response = await fetch(`${apiUrl}/api/v1/tb/`, {
@@ -644,21 +652,33 @@ endmodule`,
         setCurrentLanguage("verilog");
       }, 100);
 
-      // Add success message to chat
-      setMessages((prev) => [
-        ...prev,
-        {
+      // Replace "generating" message with success message
+      setMessages((prev) => {
+        const newMessages = [...prev];
+        // Remove the last "generating" message and add success
+        newMessages.pop();
+        newMessages.push({
           role: "assistant",
-          content: `✅ **Testbench generated successfully!**\n\nCreated \`${tbFileName}\` in \`/testbenches/\` folder.\n\nThe testbench includes:\n- Clock and reset generation\n- DUT instantiation\n- Basic stimulus\n- VCD waveform dumping`,
-        },
-      ]);
+          content: `✅ **Testbench generated successfully!**\n\nCreated \`${tbFileName}\` in \`/testbenches/\` folder.\n\nThe testbench includes:\n- Clock and reset generation (if detected)\n- DUT instantiation\n- Basic stimulus patterns\n- VCD waveform dumping\n- Display statements\n\nReady to simulate! 🚀`,
+        });
+        return newMessages;
+      });
     } catch (error) {
       console.error("Testbench generation error:", error);
-      alert(
-        `Failed to generate testbench: ${
-          error instanceof Error ? error.message : "Unknown error"
-        }`
-      );
+
+      // Replace "generating" message with error message
+      setMessages((prev) => {
+        const newMessages = [...prev];
+        // Remove the last "generating" message and add error
+        newMessages.pop();
+        newMessages.push({
+          role: "assistant",
+          content: `❌ **Testbench generation failed**\n\nError: ${
+            error instanceof Error ? error.message : "Unknown error"
+          }\n\nPlease check:\n- Backend is running\n- OpenAI API key is configured\n- Module has valid Verilog syntax`,
+        });
+        return newMessages;
+      });
     } finally {
       setIsGeneratingTB(false);
     }
@@ -821,6 +841,7 @@ endmodule`,
         onDownload={handleDownload}
         onSaveVersion={handleSaveVersion}
         onGenerateTestbench={handleGenerateTestbench}
+        isGeneratingTestbench={isGeneratingTB}
         aiEnabled={aiEnabled}
         onToggleAI={() => setAiEnabled(!aiEnabled)}
       />

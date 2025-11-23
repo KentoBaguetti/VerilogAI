@@ -3,7 +3,9 @@
 ## Changes Made
 
 ### 1. Fixed Language Detection (`App.tsx`)
+
 Added Verilog file extensions to the language map:
+
 ```typescript
 v: "verilog",
 sv: "systemverilog",
@@ -14,12 +16,15 @@ svh: "systemverilog",
 Now `.v` files are correctly identified as "verilog" instead of "plaintext".
 
 ### 2. Made Inline Provider Universal (`CodeEditor.tsx`)
+
 Changed from:
+
 ```typescript
 monacoInstance.languages.registerInlineCompletionsProvider(language, {...})
 ```
 
 To:
+
 ```typescript
 monacoInstance.languages.registerInlineCompletionsProvider({ pattern: "**" }, {...})
 ```
@@ -27,7 +32,9 @@ monacoInstance.languages.registerInlineCompletionsProvider({ pattern: "**" }, {.
 This ensures the inline completion provider works for ALL file types, not just the initially registered language.
 
 ### 3. Added Comprehensive Debug Logging
+
 Console logs at every step:
+
 - `[AI Autocomplete] Registering providers for language: ...`
 - `[AI Autocomplete] Fetching completion for language: ...`
 - `[AI Autocomplete] Suggestion added: ...`
@@ -35,11 +42,13 @@ Console logs at every step:
 - `[AI Autocomplete] Triggering inline suggestion display, items: ...`
 
 ### 4. Improved Inline Suggestion Triggering
+
 - Reduced debounce from 400ms to 200ms for faster response
 - Simplified the trigger mechanism
 - Added cursor position change detection
 
 ### 5. Optimized Monaco Configuration
+
 ```typescript
 inlineSuggest: {
   enabled: aiEnabled,
@@ -54,20 +63,24 @@ snippetSuggestions: aiEnabled ? "none" : "top", // No template interference
 ## How to Test
 
 ### Step 1: Check Browser Console
+
 1. Open browser DevTools (F12 or Cmd+Option+I)
 2. Go to Console tab
 3. Clear the console
 
 ### Step 2: Open a Verilog File
+
 1. In the app, select `gate.v` from the file tree
 2. Look for: `[AI Autocomplete] Registering providers for language: verilog`
 
 ### Step 3: Start Typing
+
 1. Click in the editor
 2. Type something like: `module test`
 3. Wait 200ms
 
 ### Step 4: Watch for These Logs
+
 ```
 [AI Autocomplete] Fetching completion for language: verilog
 [AI Autocomplete] Suggestion added: ...
@@ -76,6 +89,7 @@ snippetSuggestions: aiEnabled ? "none" : "top", // No template interference
 ```
 
 ### Step 5: Look for Ghost Text
+
 - Grey/faded text should appear after your cursor
 - This is the AI suggestion
 - Press **Tab** to accept it
@@ -84,27 +98,34 @@ snippetSuggestions: aiEnabled ? "none" : "top", // No template interference
 ## Troubleshooting
 
 ### No console logs at all?
+
 - Make sure AI is enabled (toggle in header)
 - Refresh the page
 
 ### See "Registering providers" but nothing else?
+
 - Check if the backend is running at `http://localhost:8000`
 - Try typing more (needs some context)
 - Check Network tab for API calls to `/api/v1/generate/`
 
 ### See "Fetching completion" but no suggestions?
+
 - Check the API response in Network tab
 - Look for errors in console
 - Verify OpenAI API key is configured in backend
 
 ### See "Suggestion added" but no ghost text?
+
 Check if:
+
 1. The text is there but very faint (try dark mode toggle)
 2. Monaco inline suggestions are enabled
 3. There are any Monaco errors in console
 
 ### API returning errors?
+
 Backend requires OpenAI API key:
+
 ```bash
 # In backend/.env
 OPENAI_API_KEY=sk-...
@@ -124,6 +145,7 @@ OPENAI_API_KEY=sk-...
 Endpoint: `POST http://localhost:8000/api/v1/generate/`
 
 Request:
+
 ```json
 {
   "prompt": "module test",
@@ -133,6 +155,7 @@ Request:
 ```
 
 Response:
+
 ```json
 {
   "text": "(\n  input wire clk,\n  input wire rst,\n  ..."
@@ -150,4 +173,3 @@ Response:
 1. Share the console logs from browser DevTools
 2. Share the Network tab showing API requests/responses
 3. Verify backend is running: `curl http://localhost:8000/api/v1/generate/ -X POST -H "Content-Type: application/json" -d '{"prompt":"test"}'`
-

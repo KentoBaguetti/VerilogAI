@@ -11,7 +11,7 @@ VerilogAI-TB is an integrated testbench generation assistant built into VerilogA
 ✅ **VCD Waveform Dumping** - All testbenches include proper VCD generation for GTKWave  
 ✅ **Organized Storage** - Testbenches saved to dedicated `/testbenches/` folder  
 ✅ **Standard Naming** - Follows `<module_name>_tb.v` convention  
-✅ **Simple & Scalable** - Basic smoke tests with room for future enhancements  
+✅ **Simple & Scalable** - Basic smoke tests with room for future enhancements
 
 ---
 
@@ -40,6 +40,7 @@ In the header toolbar, click the **"Gen TB"** button (enabled when a Verilog fil
 ### 3. Wait for Generation
 
 The system will:
+
 - Analyze your module (ports, clocks, resets)
 - Generate appropriate testbench code
 - Create `/testbenches/` folder (if needed)
@@ -55,32 +56,32 @@ module and_gate_tb;
   // Signal declarations
   reg a, b;
   wire y;
-  
+
   // DUT instantiation
   and_gate dut (
     .a(a),
     .b(b),
     .y(y)
   );
-  
+
   // Test stimulus
   initial begin
     $dumpfile("test.vcd");
     $dumpvars(0, tb);
-    
+
     // Test cases
     a = 0; b = 0; #10;
     $display("Test: a=%b, b=%b, y=%b", a, b, y);
-    
+
     a = 0; b = 1; #10;
     $display("Test: a=%b, b=%b, y=%b", a, b, y);
-    
+
     a = 1; b = 0; #10;
     $display("Test: a=%b, b=%b, y=%b", a, b, y);
-    
+
     a = 1; b = 1; #10;
     $display("Test: a=%b, b=%b, y=%b", a, b, y);
-    
+
     #10;
     $finish;
   end
@@ -96,7 +97,9 @@ endmodule
 VerilogAI-TB analyzes your module and automatically includes:
 
 #### Clock Generation
+
 If your module has clock ports (`clk`, `clock`):
+
 ```verilog
 initial begin
   clk = 0;
@@ -105,7 +108,9 @@ end
 ```
 
 #### Reset Sequence
+
 If your module has reset ports (`rst`, `reset`, `rst_n`, `reset_n`):
+
 ```verilog
 initial begin
   rst = 1;
@@ -116,12 +121,14 @@ end
 ```
 
 #### VCD Dumping (Always Included)
+
 ```verilog
 $dumpfile("test.vcd");
 $dumpvars(0, tb);
 ```
 
 #### Proper Simulation End
+
 ```verilog
 #50;
 $finish;
@@ -130,6 +137,7 @@ $finish;
 ### Simple Smoke Tests
 
 Current version generates basic stimulus patterns:
+
 - Boundary values (min/max)
 - Simple state transitions
 - Basic functional checks
@@ -162,6 +170,7 @@ This is the standard convention in hardware verification!
 ### OpenAI Integration
 
 VerilogAI-TB uses **OpenAI's GPT-4o** model for testbench generation, providing:
+
 - High-quality Verilog code generation
 - Understanding of hardware verification patterns
 - Proper clock/reset detection
@@ -170,6 +179,7 @@ VerilogAI-TB uses **OpenAI's GPT-4o** model for testbench generation, providing:
 ### System Prompt
 
 VerilogAI-TB uses a specialized system prompt that instructs the AI to:
+
 1. Analyze the module structure
 2. Detect clock/reset signals
 3. Generate proper signal declarations
@@ -183,6 +193,7 @@ VerilogAI-TB uses a specialized system prompt that instructs the AI to:
 **Endpoint**: `POST /api/v1/tb/`
 
 **Request**:
+
 ```json
 {
   "prompt": "<verilog_module_code>"
@@ -190,6 +201,7 @@ VerilogAI-TB uses a specialized system prompt that instructs the AI to:
 ```
 
 **Response**:
+
 ```json
 {
   "text": "<generated_testbench_code>",
@@ -200,6 +212,7 @@ VerilogAI-TB uses a specialized system prompt that instructs the AI to:
 ### Module Name Extraction
 
 The backend automatically extracts the module name using regex:
+
 ```python
 def extract_module_name(verilog_code: str) -> str:
     match = re.search(r'^\s*module\s+(\w+)', verilog_code, re.MULTILINE)
@@ -217,6 +230,7 @@ def extract_module_name(verilog_code: str) -> str:
 Location: **Header toolbar** (between AI toggle and Upload button)
 
 Button appearance:
+
 - **Enabled**: Green background when Verilog file is open
 - **Disabled**: Gray when no file selected or non-Verilog file
 
@@ -232,6 +246,7 @@ Button appearance:
 ### User Feedback
 
 Success message added to chat:
+
 ```
 ✅ Testbench generated successfully!
 
@@ -251,6 +266,7 @@ The testbench includes:
 The current implementation is intentionally simple to allow easy scaling:
 
 ### Phase 2 (Planned)
+
 - ✨ More sophisticated test patterns
 - ✨ Randomized input generation
 - ✨ Assertions and self-checking
@@ -258,6 +274,7 @@ The current implementation is intentionally simple to allow easy scaling:
 - ✨ Protocol-specific sequences (AXI, APB, UART)
 
 ### Phase 3 (Agentic)
+
 - 🤖 Iterative test improvement
 - 🤖 Coverage-driven test generation
 - 🤖 Bug detection and regression tests
@@ -268,12 +285,15 @@ The current implementation is intentionally simple to allow easy scaling:
 ## Troubleshooting
 
 ### "Please select a Verilog file"
+
 **Problem**: Non-Verilog file is open  
 **Solution**: Select a `.v` or `.sv` file
 
 ### "Failed to generate testbench"
+
 **Problem**: Backend connection issue  
-**Solution**: 
+**Solution**:
+
 1. Check backend is running (`docker-compose up`)
 2. Verify API URL is `http://localhost:8000`
 3. Check OpenAI API key is configured in `.env` file:
@@ -282,10 +302,12 @@ The current implementation is intentionally simple to allow easy scaling:
    ```
 
 ### "File already exists"
+
 **Problem**: Testbench with same name exists  
 **Solution**: The system automatically replaces it with the new version
 
 ### Module name is "module_tb.v"
+
 **Problem**: Module name couldn't be extracted  
 **Solution**: Ensure your Verilog has proper `module <name>` declaration
 
@@ -294,9 +316,11 @@ The current implementation is intentionally simple to allow easy scaling:
 ## Implementation Files
 
 ### Backend
+
 - `backend/app/api/routes/tb.py` - API endpoint with VerilogAI-TB prompt
 
 ### Frontend
+
 - `new-frontend/src/components/Header.tsx` - "Gen TB" button
 - `new-frontend/src/App.tsx` - Generation logic and auto-save
 
@@ -331,39 +355,39 @@ endmodule
 module counter_tb;
   reg clk, rst;
   wire [3:0] count;
-  
+
   // Clock generator
   initial begin
     clk = 0;
     forever #5 clk = ~clk;
   end
-  
+
   // DUT instantiation
   counter dut (
     .clk(clk),
     .rst(rst),
     .count(count)
   );
-  
+
   // Test stimulus
   initial begin
     $dumpfile("test.vcd");
     $dumpvars(0, tb);
-    
+
     // Reset
     rst = 1;
     #20;
     rst = 0;
-    
+
     // Let it count
     #100;
     $display("Count reached: %d", count);
-    
+
     // Reset again
     rst = 1;
     #10;
     rst = 0;
-    
+
     #50;
     $finish;
   end
@@ -379,21 +403,27 @@ Use the existing simulation pipeline - the testbench is ready to run!
 ## Design Philosophy
 
 ### Simple First
+
 Start with basic smoke tests that verify:
+
 - ✅ Module compiles
 - ✅ Signals connect properly
 - ✅ Basic functionality works
 - ✅ VCD waveforms generate
 
 ### Quality Over Quantity
+
 Each testbench includes:
+
 - ✅ Clean, readable code
 - ✅ Proper formatting
 - ✅ Meaningful variable names
 - ✅ Helpful display statements
 
 ### Scalable Architecture
+
 The system is designed to grow:
+
 - ✅ Modular backend prompt
 - ✅ Extensible frontend hooks
 - ✅ Standard file organization
@@ -404,22 +434,28 @@ The system is designed to grow:
 ## Technical Specifications
 
 ### Supported File Types
+
 - `.v` (Verilog)
 - `.sv` (SystemVerilog)
 
 ### Naming Standard
+
 - `<module_name>_tb.v` (industry standard)
 
 ### Storage Location
+
 - `/testbenches/` folder (auto-created)
 
 ### AI Model
+
 - GPT-4o via OpenAI
 
 ### Temperature
+
 - 0.6 (balanced creativity and consistency)
 
 ### Max Tokens
+
 - 2000 (testbenches can be longer than typical completions)
 
 ---
@@ -427,21 +463,27 @@ The system is designed to grow:
 ## Best Practices
 
 ### 1. Start Simple
+
 Generate testbench for small modules first to verify functionality.
 
 ### 2. Review Generated Code
+
 Always review the testbench before running simulation.
 
 ### 3. Iterate
+
 If testbench needs changes, you can:
+
 - Edit manually
 - Regenerate (replaces existing file)
 - Use AI chat for modifications
 
 ### 4. Version Control
+
 Save important testbenches with the version history feature.
 
 ### 5. Organize
+
 Keep all testbenches in `/testbenches/` folder for easy management.
 
 ---
@@ -459,5 +501,4 @@ VerilogAI-TB provides **fast, automated testbench generation** integrated seamle
 
 ---
 
-*For questions or issues, check the backend logs or contact support.*
-
+_For questions or issues, check the backend logs or contact support._

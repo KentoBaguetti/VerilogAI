@@ -20,6 +20,7 @@
 ## What Should Happen
 
 When you type in the editor:
+
 1. After 200ms, you should see "AI thinking..." in the top-right corner
 2. The AI will call the backend API at `http://localhost:8000/api/v1/generate/`
 3. Once it gets a response, greyed-out ghost text should appear
@@ -29,16 +30,20 @@ When you type in the editor:
 ## Common Issues
 
 ### No ghost text appearing?
+
 Check console for:
+
 - Is AI enabled? (toggle in header)
 - Is the backend running? (`http://localhost:8000`)
 - Are there API errors in console?
 - Is the language detected correctly?
 
 ### Ghost text too faint?
+
 The ghost text uses Monaco's default inline suggestion styling. It should be visible but greyed out.
 
 ### API not being called?
+
 - Check if `aiEnabled` is true in the header toggle
 - Check if there's text in the editor (needs at least some content)
 - Check if you're typing in comments or strings (AI skips these)
@@ -46,6 +51,7 @@ The ghost text uses Monaco's default inline suggestion styling. It should be vis
 ## Backend API
 
 The autocomplete calls:
+
 ```
 POST http://localhost:8000/api/v1/generate/
 {
@@ -54,9 +60,9 @@ POST http://localhost:8000/api/v1/generate/
 ```
 
 Expected response:
+
 ```json
 {
   "text": "suggested code here"
 }
 ```
-

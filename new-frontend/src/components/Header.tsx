@@ -7,6 +7,7 @@ interface HeaderProps {
     onDownload: () => void;
     onSaveVersion: () => void;
     onGenerateTestbench?: () => void;
+    isGeneratingTestbench?: boolean;
     aiEnabled?: boolean;
     onToggleAI?: () => void;
 }
@@ -17,6 +18,7 @@ const Header: React.FC<HeaderProps> = ({
     onDownload,
     onSaveVersion,
     onGenerateTestbench,
+    isGeneratingTestbench = false,
     aiEnabled = false,
     onToggleAI,
 }) => {
@@ -74,20 +76,38 @@ const Header: React.FC<HeaderProps> = ({
                 {onGenerateTestbench && (
                     <button
                         onClick={onGenerateTestbench}
-                        disabled={!selectedFile}
+                        disabled={!selectedFile || isGeneratingTestbench}
                         className="flex items-center gap-2 px-4 py-2 rounded-md transition-all hover:scale-105 disabled:opacity-50 text-black"
-                        style={{ background: selectedFile ? "#8B9A7E" : "#ccc" }}
-                        title="Generate Testbench (VerilogAI-TB)"
+                        style={{ background: selectedFile && !isGeneratingTestbench ? "#8B9A7E" : "#ccc" }}
+                        title={isGeneratingTestbench ? "Generating testbench..." : "Generate Testbench (VerilogAI-TB)"}
                     >
-                        <svg
-                            width="16"
-                            height="16"
-                            viewBox="0 0 16 16"
-                            fill="currentColor"
-                        >
-                            <path d="M8 2a.5.5 0 0 1 .5.5v5h5a.5.5 0 0 1 0 1h-5v5a.5.5 0 0 1-1 0v-5h-5a.5.5 0 0 1 0-1h5v-5A.5.5 0 0 1 8 2Z" />
-                        </svg>
-                        <span className="text-sm">Gen TB</span>
+                        {isGeneratingTestbench ? (
+                            <>
+                                <svg
+                                    width="16"
+                                    height="16"
+                                    viewBox="0 0 16 16"
+                                    fill="currentColor"
+                                    className="animate-spin"
+                                >
+                                    <path d="M8 0a8 8 0 1 0 8 8A8 8 0 0 0 8 0Zm0 14a6 6 0 1 1 6-6 6 6 0 0 1-6 6Z" opacity="0.25" />
+                                    <path d="M8 0a8 8 0 0 1 8 8h-2a6 6 0 0 0-6-6V0Z" />
+                                </svg>
+                                <span className="text-sm">Generating...</span>
+                            </>
+                        ) : (
+                            <>
+                                <svg
+                                    width="16"
+                                    height="16"
+                                    viewBox="0 0 16 16"
+                                    fill="currentColor"
+                                >
+                                    <path d="M8 2a.5.5 0 0 1 .5.5v5h5a.5.5 0 0 1 0 1h-5v5a.5.5 0 0 1-1 0v-5h-5a.5.5 0 0 1 0-1h5v-5A.5.5 0 0 1 8 2Z" />
+                                </svg>
+                                <span className="text-sm">Gen TB</span>
+                            </>
+                        )}
                     </button>
                 )}
                 <button
