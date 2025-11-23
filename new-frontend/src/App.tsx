@@ -5,8 +5,7 @@ import Sidebar from "./components/Sidebar";
 import ChatSidebar from "./components/ChatSiderbar";
 import CodeEditor from "./components/CodeEditor";
 import Resizer from "./components/Resizer";
-import { FileItem, Message, Version, ExpandedState } from "./types";
-import { getGPTResponse } from "./api/openai";
+import type { FileItem, Message, Version, ExpandedState } from "./types";
 
 const App: React.FC = () => {
     const [started, setStarted] = useState(false);
@@ -35,43 +34,22 @@ endmodule`,
     ]);
     const [selectedFile, setSelectedFile] = useState<string | null>(null);
     const [currentContent, setCurrentContent] = useState("");
-    const [currentLanguage, setCurrentLanguage] = useState("verilog");
+    const [currentLanguage, setCurrentLanguage] = useState("typescript");
     const [messages, setMessages] = useState<Message[]>([]);
     const [inputValue, setInputValue] = useState("");
     const [sidebarWidth, setSidebarWidth] = useState(280);
     const [chatWidth, setChatWidth] = useState(400);
     const [expanded, setExpanded] = useState<ExpandedState>({
-        "/modules": true,
+        "/src": true,
+        "/public": true,
     });
     const [versions, setVersions] = useState<Version[]>([]);
+    const [aiEnabled, setAiEnabled] = useState(true); // AI autocomplete enabled by default
+    const [apiUrl, setApiUrl] = useState("http://localhost:8000"); // Default API URL
 
     const getLanguageFromFilename = (filename: string): string => {
         const extension = filename.split(".").pop()?.toLowerCase();
         const languageMap: { [key: string]: string } = {
-            ts: "typescript",
-            tsx: "typescript",
-            js: "javascript",
-            jsx: "javascript",
-            json: "json",
-            html: "html",
-            css: "css",
-            scss: "scss",
-            md: "markdown",
-            py: "python",
-            java: "java",
-            cpp: "cpp",
-            c: "c",
-            cs: "csharp",
-            go: "go",
-            rs: "rust",
-            php: "php",
-            rb: "ruby",
-            swift: "swift",
-            kt: "kotlin",
-            sql: "sql",
-            xml: "xml",
-            yaml: "yaml",
-            yml: "yaml",
             v: "verilog",
         };
         return languageMap[extension || ""] || "plaintext";
@@ -122,10 +100,6 @@ endmodule`,
     const handleToggle = (path: string) => {
         setExpanded((prev) => ({ ...prev, [path]: !prev[path] }));
     };
-
-    // meow meow meow
-
-    const [prompt, setPrompt] = useState("");
 
     const handleSendMessage = async () => {
         if (!inputValue.trim()) return;
@@ -246,6 +220,8 @@ endmodule`,
                 onUpload={handleUpload}
                 onDownload={handleDownload}
                 onSaveVersion={handleSaveVersion}
+                aiEnabled={aiEnabled}
+                onToggleAI={() => setAiEnabled(!aiEnabled)}
             />
 
             <div className="flex flex-1 overflow-hidden">
@@ -267,6 +243,9 @@ endmodule`,
                             value={currentContent}
                             language={currentLanguage}
                             onChange={handleEditorChange}
+                            aiEnabled={aiEnabled}
+                            apiUrl={apiUrl}
+                            theme="vs"
                         />
                     ) : (
                         <div className="flex-1 flex items-center justify-center text-ink opacity-50">
