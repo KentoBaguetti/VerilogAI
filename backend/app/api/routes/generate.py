@@ -87,69 +87,49 @@ def clean_completion(text: str) -> str:
 
 @router.post("/", response_model=GenerateResponse)
 def generate(req: GenerateRequest):
-    """Generate code completion (non-streaming)"""
+    """Generate code completion (non-streaming) using OpenAI"""
+    from openai import OpenAI
+    
     prompt_text = req.prompt.strip()
-    suffix_text = req.suffix.strip()
 
     if not prompt_text:
         raise HTTPException(status_code=400, detail="Prompt must not be empty.")
 
-    # Get access token
-    try:
-        access_token = get_access_token()
-    except RuntimeError as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-    # Build the prompt - Codestral FIM format
-    if suffix_text:
-        # FIM: Fill-in-middle with context
-        final_prompt = f"<fim_prefix>{prompt_text}<fim_suffix>{suffix_text}<fim_middle>"
-    else:
-        # Regular completion
-        final_prompt = prompt_text
-
-    # API endpoint
-    url = f"https://{settings.VERTEX_LOCATION}-aiplatform.googleapis.com/v1/projects/{settings.VERTEX_PROJECT_NUMBER}/locations/{settings.VERTEX_LOCATION}/publishers/mistralai/models/codestral-2501:rawPredict"
-
-    headers = {
-        "Authorization": f"Bearer {access_token}",
-        "Content-Type": "application/json",
-    }
-
-    payload = {
-        "model": "codestral-2501",
-        "prompt": final_prompt,
-        "max_tokens": req.max_tokens,
-        "temperature": req.temperature,
-        "stop": [
-            "\n\n\n",
-            "endmodule",
-            "endfunction",
-            "endtask",
-        ],  # Stop at logical boundaries
-    }
+    # Check for OpenAI API key
+    if not settings.OPENAI_API_KEY:
+        raise HTTPException(
+            status_code=500,
+            detail="OPENAI_API_KEY is not configured. Please add it to your .env file."
+        )
 
     try:
-        response = requests.post(url, json=payload, headers=headers, timeout=10)
-        response.raise_for_status()
-        resp_json = response.json()
+        client = OpenAI(api_key=settings.OPENAI_API_KEY)
+        
+        # Build a completion-focused prompt
+        system_prompt = """You are a Verilog code completion assistant. Complete the code naturally and concisely.
+Only return the completion code, no explanations or markdown.
+Focus on syntactically correct Verilog that fits the context."""
 
-        # Extract completion
-        generated_text = resp_json["choices"][0]["message"]["content"]
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": f"Complete this Verilog code:\n\n{prompt_text}"}
+            ],
+            max_tokens=req.max_tokens,
+            temperature=req.temperature,
+            stop=["\n\n\n", "endmodule", "endfunction", "endtask"],
+        )
 
+        generated_text = response.choices[0].message.content or ""
+        
         # Clean up the completion
         generated_text = clean_completion(generated_text)
 
         return GenerateResponse(text=generated_text)
 
-    except requests.exceptions.Timeout:
-        raise HTTPException(status_code=504, detail="Request timed out")
-    except requests.exceptions.RequestException as e:
-        raise HTTPException(status_code=500, detail=f"API request failed: {str(e)}")
-    except (KeyError, IndexError) as e:
-        raise HTTPException(
-            status_code=500, detail=f"Unexpected response format: {resp_json}"
-        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"OpenAI API error: {str(e)}")
 
 
 @router.post("/stream")

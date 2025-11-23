@@ -138,18 +138,13 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
         setIsLoadingCompletion(true);
 
         try {
-            const response = await fetch(`${apiUrl}/api/v1/chat/stream/`, {
+            const response = await fetch(`${apiUrl}/api/v1/generate/`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
                 },
                 body: JSON.stringify({
                     prompt: enhancedPrompt,
-                    suffix: suffixContext,
-                    max_tokens: 150,
-                    temperature: 0.3,
-                    language: "verilog", // Specify language for better results
-                    context_type: verilogContext, // Pass context type to backend
                 }),
             });
 

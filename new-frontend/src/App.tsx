@@ -7,27 +7,77 @@ import CodeEditor from "./components/CodeEditor";
 import Resizer from "./components/Resizer";
 import type { FileItem, Message, Version, ExpandedState } from "./types";
 
-async function generateCode(prompt: string, suffix = "") {
-    const res = await fetch(`http://localhost:8000/api/v1/chat/stream/`, {
+interface ChatContext {
+    code: string;
+    filePath?: string;
+    language?: string;
+}
+
+async function streamChatResponse(
+    messages: Message[],
+    context: ChatContext | undefined,
+    onChunk: (chunk: string) => void
+): Promise<void> {
+    const payload: any = {
+        messages: messages.map((m) => ({
+            role: m.role,
+            content: m.content,
+        })),
+    };
+    
+    if (context) {
+        payload.context = context;
+    }
+    
+    console.log("Sending chat request:", payload);
+    
+    const res = await fetch(`http://localhost:8000/api/v1/chat/stream`, {
         method: "POST",
         headers: {
             "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-            prompt,
-            suffix,
-            max_tokens: 150,
-            temperature: 0.4,
-        }),
+        body: JSON.stringify(payload),
     });
 
     if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail || "Failed to generate");
+        console.error("Chat error response:", err);
+        throw new Error(err.detail || `Server error: ${res.status}`);
     }
 
-    const data = (await res.json()) as { text: string };
-    return data.text;
+    const reader = res.body?.getReader();
+    const decoder = new TextDecoder();
+
+    if (!reader) throw new Error("No response body");
+
+    let buffer = "";
+    while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        
+        // Keep the last incomplete line in the buffer
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+            if (line.startsWith("data: ")) {
+                const data = line.slice(6).trim();
+                if (data === "[DONE]") continue;
+                try {
+                    const parsed = JSON.parse(data);
+                    if (parsed.content) {
+                        onChunk(parsed.content);
+                    } else if (parsed.error) {
+                        throw new Error(parsed.error);
+                    }
+                } catch (e) {
+                    console.warn("Failed to parse SSE data:", data, e);
+                }
+            }
+        }
+    }
 }
 
 const App: React.FC = () => {
@@ -69,6 +119,7 @@ endmodule`,
     const [versions, setVersions] = useState<Version[]>([]);
     const [aiEnabled, setAiEnabled] = useState(true); // AI autocomplete enabled by default
     const [apiUrl, setApiUrl] = useState("http://localhost:8000"); // Default API URL
+    const [isLoadingChat, setIsLoadingChat] = useState(false);
 
     const getLanguageFromFilename = (filename: string): string => {
         const extension = filename.split(".").pop()?.toLowerCase();
@@ -287,21 +338,54 @@ endmodule`,
     };
 
     const handleSendMessage = async () => {
-        if (!inputValue.trim()) return;
+        if (!inputValue.trim() || isLoadingChat) return;
 
         const userMessage: Message = { role: "user", content: inputValue };
-        setMessages((prev) => [...prev, userMessage]);
-
-        const reply = await generateCode(inputValue);
-
-        // const reply: Message = {
-        //     role: "assistant",
-        //     content: "placeholder response",
-        // };
-
-        setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
-
+        const updatedMessages = [...messages, userMessage];
+        setMessages(updatedMessages);
         setInputValue("");
+        setIsLoadingChat(true);
+
+        // Add empty assistant message that will be filled with streaming content
+        const assistantMessageIndex = updatedMessages.length;
+        setMessages((prev) => [
+            ...prev,
+            { role: "assistant", content: "" },
+        ]);
+
+        try {
+            let fullResponse = "";
+            // Include code context if a file is selected
+            const context = selectedFile ? {
+                code: currentContent,
+                filePath: selectedFile,
+                language: currentLanguage,
+            } : undefined;
+            
+            await streamChatResponse(updatedMessages, context, (chunk) => {
+                fullResponse += chunk;
+                setMessages((prev) => {
+                    const newMessages = [...prev];
+                    newMessages[assistantMessageIndex] = {
+                        role: "assistant",
+                        content: fullResponse,
+                    };
+                    return newMessages;
+                });
+            });
+        } catch (error) {
+            console.error("Chat error:", error);
+            setMessages((prev) => {
+                const newMessages = [...prev];
+                newMessages[assistantMessageIndex] = {
+                    role: "assistant",
+                    content: `Sorry, I encountered an error: ${error instanceof Error ? error.message : 'Unknown error'}. Please make sure the backend is running and your OpenAI API key is configured.`,
+                };
+                return newMessages;
+            });
+        } finally {
+            setIsLoadingChat(false);
+        }
     };
 
     const handleSaveVersion = () => {
@@ -447,6 +531,7 @@ endmodule`,
                     onInputChange={setInputValue}
                     onSendMessage={handleSendMessage}
                     width={chatWidth}
+                    isLoading={isLoadingChat}
                 />
             </div>
         </div>

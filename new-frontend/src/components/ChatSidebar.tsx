@@ -8,6 +8,7 @@ interface ChatSidebarProps {
     onInputChange: (value: string) => void;
     onSendMessage: () => void;
     width: number;
+    isLoading?: boolean;
 }
 
 const ChatSidebar: React.FC<ChatSidebarProps> = ({
@@ -16,6 +17,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
     onInputChange,
     onSendMessage,
     width,
+    isLoading = false,
 }) => {
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -65,9 +67,22 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
                             color: "white",
                         }}
                     >
-                        <p className="text-sm leading-relaxed">{msg.content}</p>
+                        <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                            {msg.content || (
+                                <span className="opacity-50">...</span>
+                            )}
+                        </p>
                     </div>
                 ))}
+                {isLoading && messages[messages.length - 1]?.role !== "assistant" && (
+                    <div className="mr-8 p-3 rounded-lg" style={{ background: "#8B9A7E" }}>
+                        <div className="flex gap-1">
+                            <span className="w-2 h-2 bg-white rounded-full animate-bounce" style={{ animationDelay: "0ms" }}></span>
+                            <span className="w-2 h-2 bg-white rounded-full animate-bounce" style={{ animationDelay: "150ms" }}></span>
+                            <span className="w-2 h-2 bg-white rounded-full animate-bounce" style={{ animationDelay: "300ms" }}></span>
+                        </div>
+                    </div>
+                )}
                 <div ref={messagesEndRef} />
             </div>
 

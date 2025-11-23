@@ -25,8 +25,12 @@ class ChatRequest(BaseModel):
     context: Optional[ChatContext] = None
 
 def stream_openai(messages: List[Dict[str, str]]):
+    import json
+    
     if not settings.OPENAI_API_KEY:
-        yield "\n[Error: OPENAI_API_KEY is not set in the backend environment. Please add it to your .env file.]"
+        error_msg = json.dumps({"error": "OPENAI_API_KEY is not set in the backend environment. Please add it to your .env file."})
+        yield f"data: {error_msg}\n\n"
+        yield "data: [DONE]\n\n"
         return
 
     client = OpenAI(api_key=settings.OPENAI_API_KEY)
@@ -40,10 +44,16 @@ def stream_openai(messages: List[Dict[str, str]]):
         
         for chunk in stream:
             if chunk.choices[0].delta.content is not None:
-                yield chunk.choices[0].delta.content
+                content = chunk.choices[0].delta.content
+                data = json.dumps({"content": content})
+                yield f"data: {data}\n\n"
+        
+        yield "data: [DONE]\n\n"
 
     except Exception as e:
-        yield f"\n[Error: {str(e)}]"
+        error_msg = json.dumps({"error": str(e)})
+        yield f"data: {error_msg}\n\n"
+        yield "data: [DONE]\n\n"
 
 @router.post("/stream")
 def chat_stream(req: ChatRequest):
