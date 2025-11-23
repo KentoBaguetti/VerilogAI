@@ -23,6 +23,7 @@ class ChatContext(BaseModel):
 class ChatRequest(BaseModel):
     messages: List[ChatMessage]
     context: Optional[ChatContext] = None
+    isAgentic: Optional[bool] = False
 
 def stream_openai(messages: List[Dict[str, str]]):
     import json
@@ -61,7 +62,36 @@ def chat_stream(req: ChatRequest):
     final_messages = []
     
     # Add System / Context message
-    system_content = "You are an expert Verilog hardware engineering assistant. You help users write, debug, and simulate Verilog code.\n"
+    if req.isAgentic:
+        # Agentic mode: focus on code changes with formatted description
+        system_content = """You are an expert Verilog code editor assistant. When the user requests code changes, you should:
+
+1. Provide a brief description of what you're changing and why (2-4 sentences)
+2. Then provide the complete modified code in a verilog code block
+
+FORMATTING GUIDELINES:
+- Use markdown formatting for emphasis (bold, italic, bullet points, etc.)
+- Keep the description concise and focused on WHAT changed and WHY
+- Use bullet points (•) to list multiple changes clearly
+- Then provide the full modified code in a ```verilog code block
+
+Example response format:
+"I've added an **active-low reset signal** to your module. The reset will asynchronously clear the output when asserted low.
+
+Key changes:
+• Added `rst_n` input port
+• Modified assign statement with ternary operator
+• Output clears to 0 on reset
+
+```verilog
+[full code here]
+```"
+
+Keep descriptions clear and professional. Use markdown to highlight important terms.
+"""
+    else:
+        # Normal chat mode: conversational assistant
+        system_content = "You are an expert Verilog hardware engineering assistant. You help users write, debug, and simulate Verilog code.\n"
     
     if req.context:
         system_content += f"\nContext:\nFile: {req.context.filePath or 'Unknown'}\n"

@@ -1,6 +1,7 @@
 import React, { useRef, useEffect } from "react";
 import { Message } from "../types";
 import { SendIcon } from "./Icons";
+import { markdownToHtml } from "../utils/markdown";
 
 interface ChatSidebarProps {
   messages: Message[];
@@ -71,9 +72,20 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
               color: "white",
             }}
           >
-            <p className="text-sm leading-relaxed whitespace-pre-wrap">
-              {msg.content || <span className="opacity-50">...</span>}
-            </p>
+            {msg.content ? (
+              <div
+                className="text-sm leading-relaxed"
+                style={{
+                  wordBreak: "break-word",
+                  overflowWrap: "break-word",
+                }}
+                dangerouslySetInnerHTML={{
+                  __html: markdownToHtml(msg.content),
+                }}
+              />
+            ) : (
+              <span className="opacity-50 text-sm">...</span>
+            )}
           </div>
         ))}
         {isLoading && messages[messages.length - 1]?.role !== "assistant" && (
