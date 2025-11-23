@@ -7,6 +7,29 @@ import CodeEditor from "./components/CodeEditor";
 import Resizer from "./components/Resizer";
 import type { FileItem, Message, Version, ExpandedState } from "./types";
 
+async function generateCode(prompt: string, suffix = "") {
+    const res = await fetch(`http://localhost:8000/api/v1/chat/stream/`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+            prompt,
+            suffix,
+            max_tokens: 150,
+            temperature: 0.4,
+        }),
+    });
+
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || "Failed to generate");
+    }
+
+    const data = (await res.json()) as { text: string };
+    return data.text;
+}
+
 const App: React.FC = () => {
     const [started, setStarted] = useState(false);
     const [files, setFiles] = useState<FileItem[]>([
@@ -107,17 +130,14 @@ endmodule`,
         const userMessage: Message = { role: "user", content: inputValue };
         setMessages((prev) => [...prev, userMessage]);
 
-        // const reply = await getGPTResponse(prompt);
-        const reply: Message = {
-            role: "assistant",
-            content: "placeholder response",
-        };
+        const reply = await generateCode(inputValue);
 
-        setMessages((prev) => [...prev, reply]);
+        // const reply: Message = {
+        //     role: "assistant",
+        //     content: "placeholder response",
+        // };
 
-        // setTimeout(() => {
-        //     setMessages((prev) => [...prev, reply]);
-        // }, 500);
+        setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
 
         setInputValue("");
     };
