@@ -1,14 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import Editor, { OnMount, useMonaco, DiffEditor } from "@monaco-editor/react";
 import * as monaco from "monaco-editor";
-import {
-    verilogSnippets,
-    detectVerilogContext,
-    buildVerilogPromptContext,
-    extractModuleInfo,
-    type VerilogSnippet,
-} from "./editor/verilog-snippets";
-import { CompletionFormatter } from "./editor/completion-formatter";
 
 interface CodeEditorProps {
     value: string;
@@ -20,18 +12,6 @@ interface CodeEditorProps {
     proposedCode?: string | null;
     onAcceptProposal?: () => void;
     onRejectProposal?: () => void;
-}
-
-interface CompletionItem {
-    insertText: string;
-    range: {
-        startLineNumber: number;
-        startColumn: number;
-        endLineNumber: number;
-        endColumn: number;
-    };
-    label: string;
-    detail?: string;
 }
 
 const CodeEditor: React.FC<CodeEditorProps> = ({
@@ -48,316 +28,157 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
     const monacoInstance = useMonaco();
     const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
     const debounceTimer = useRef<number>();
-    const [cachedSuggestions, setCachedSuggestions] = useState<
-        CompletionItem[]
-    >([]);
-    const suggestionsRef = useRef<CompletionItem[]>([]);
-    const suppressRef = useRef(false);
     const [isLoadingCompletion, setIsLoadingCompletion] = useState(false);
     const aiEnabledRef = useRef(aiEnabled);
+    const inlineProviderRef = useRef<monaco.IDisposable | null>(null);
+    const currentSuggestionRef = useRef<string>("");
 
-    // Keep aiEnabled in sync
     useEffect(() => {
         aiEnabledRef.current = aiEnabled;
     }, [aiEnabled]);
 
-    // Check if cursor is in a valid context for AI suggestions
-    const shouldTriggerAI = useCallback(() => {
-        const editor = editorRef.current;
-        if (!editor) return false;
-
-        const model = editor.getModel();
-        const position = editor.getPosition();
-        if (!model || !position) return false;
-
-        const lineText = model.getLineContent(position.lineNumber);
-        const textBeforeCursor = lineText.slice(0, position.column - 1);
-
-        // Don't trigger in comments
-        if (textBeforeCursor.includes("//")) return false;
-        if (textBeforeCursor.includes("/*") && !textBeforeCursor.includes("*/"))
-            return false;
-
-        // Don't trigger in strings
-        const quoteCount = (textBeforeCursor.match(/"/g) || []).length;
-        if (quoteCount % 2 === 1) return false;
-
-        // Require some context
-        const words = textBeforeCursor.trim().split(/\s+/);
-        const hasEnoughContext = words.length >= 2;
-
-        // Or trigger after special characters
-        const charBefore = lineText[position.column - 2];
-        const triggerChars = ["(", "{", "=", ",", ";", ":", "[", "."];
-        const hasTriggerChar = triggerChars.includes(charBefore);
-
-        return hasEnoughContext || hasTriggerChar;
-    }, []);
-
-    // Fetch AI completions with Verilog-specific context
-    const fetchAICompletions = useCallback(async () => {
-        const editor = editorRef.current;
-        if (suppressRef.current || !editor || !aiEnabledRef.current) return;
-        if (!shouldTriggerAI()) return;
-
-        const model = editor.getModel();
-        const position = editor.getPosition();
-        if (!model || !position) return;
-
-        const offset = model.getOffsetAt(position);
-        const fullText = model.getValue();
-        const prefix = fullText.slice(0, offset);
-        const suffix = fullText.slice(offset);
-
-        // Detect Verilog context
-        const verilogContext = detectVerilogContext(prefix);
-
-        // Extract module info if available
-        const moduleInfo = extractModuleInfo(fullText);
-
-        // Build Verilog-aware context prompt
-        const contextWindow = 500;
-        const contextStart = Math.max(0, prefix.length - contextWindow);
-        const rawContext = prefix.slice(contextStart);
-
-        // Add Verilog-specific context hints
-        const contextPrompt = buildVerilogPromptContext(rawContext);
-
-        // Add module context if available
-        let enhancedPrompt = contextPrompt;
-        if (moduleInfo) {
-            enhancedPrompt = `// Module: ${
-                moduleInfo.name
-            }\n// Ports: ${moduleInfo.ports.join(", ")}\n${contextPrompt}`;
-        }
-
-        // Add context type hint
-        if (verilogContext) {
-            enhancedPrompt = `// Current context: ${verilogContext}\n${enhancedPrompt}`;
-        }
-
-        // Get suffix context (next 200 chars)
-        const suffixWindow = 200;
-        const suffixContext = suffix.slice(0, suffixWindow);
-
-        if (!contextPrompt.trim()) return;
-
-        setIsLoadingCompletion(true);
-
+    // Fetch AI completion from backend
+    const fetchAICompletion = useCallback(async (prefix: string): Promise<string> => {
         try {
+            console.log("[AI Autocomplete] Fetching completion...");
+            
             const response = await fetch(`${apiUrl}/api/v1/generate/`, {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    prompt: enhancedPrompt,
+                    prompt: prefix.slice(Math.max(0, prefix.length - 1000)), // Last 1000 chars for context
+                    max_tokens: 150,
+                    temperature: 0.3,
                 }),
             });
 
-            if (!response.ok) throw new Error("API request failed");
+            if (!response.ok) {
+                console.error("[AI Autocomplete] API error:", response.status);
+                return "";
+            }
 
             const data = await response.json();
-            let text = data.text as string;
+            let text = (data.text as string || "").trim();
 
-            // Clean up the completion (remove markdown, extra whitespace)
+            // Clean up markdown code fences if present
             text = text
-                .replace(/^```(?:verilog|systemverilog)?\s*/, "")
-                .replace(/```$/, "")
-                .replace(/^[\s\n]+/, "")
-                .trimEnd();
+                .replace(/^```(?:verilog|systemverilog|v|sv)?\s*\n?/, "")
+                .replace(/\n?```\s*$/, "")
+                .trim();
 
-            if (!text || text.length < 2) return;
-
-            // Limit to reasonable length (15 lines max for Verilog)
-            const lines = text.split("\n");
-            const maxLines = 15;
-            const limitedText = lines.slice(0, maxLines).join("\n");
-
-            const item: CompletionItem = {
-                insertText: limitedText,
-                range: {
-                    startLineNumber: position.lineNumber,
-                    startColumn: position.column,
-                    endLineNumber: position.lineNumber,
-                    endColumn: position.column,
-                },
-                label: "✨ AI Suggestion",
-                detail: `Press Tab to accept, Esc to dismiss${
-                    verilogContext ? ` (${verilogContext})` : ""
-                }`,
-            };
-
-            setCachedSuggestions((prev) => {
-                const next = [...prev, item].slice(-10); // Keep last 10
-                suggestionsRef.current = next;
-                return next;
-            });
+            console.log("[AI Autocomplete] Got suggestion:", text.substring(0, 50) + "...");
+            return text;
         } catch (error) {
-            console.error("AI completion error:", error);
-        } finally {
-            setIsLoadingCompletion(false);
+            console.error("[AI Autocomplete] Error:", error);
+            return "";
         }
-    }, [apiUrl, shouldTriggerAI]);
+    }, [apiUrl]);
 
-    // Debounced AI trigger
-    const triggerAI = useCallback(() => {
-        clearTimeout(debounceTimer.current);
-        debounceTimer.current = window.setTimeout(() => {
-            suppressRef.current = false;
-            fetchAICompletions();
-        }, 400);
-    }, [fetchAICompletions]);
-
-    // Register completion providers
+    // Setup inline completions provider using Monaco's built-in API
     useEffect(() => {
-        if (!monacoInstance) return;
+        if (!monacoInstance || !aiEnabled) {
+            // Clean up provider if AI is disabled
+            if (inlineProviderRef.current) {
+                inlineProviderRef.current.dispose();
+                inlineProviderRef.current = null;
+            }
+            return;
+        }
 
-        // Verilog snippets provider (for keywords/patterns dropdown)
-        const verilogSnippetsProvider =
-            monacoInstance.languages.registerCompletionItemProvider(language, {
-                triggerCharacters: [" ", "\t"],
-                provideCompletionItems: (model, position) => {
-                    const lineContent = model.getLineContent(
-                        position.lineNumber
-                    );
-                    const textBeforeCursor = lineContent.slice(
-                        0,
-                        position.column - 1
-                    );
+        console.log("[AI Autocomplete] Registering inline completion provider");
 
-                    // Don't provide snippets in comments or strings
-                    if (textBeforeCursor.includes("//"))
-                        return { suggestions: [] };
-                    if ((textBeforeCursor.match(/"/g) || []).length % 2 === 1)
-                        return { suggestions: [] };
+        // Register inline completions provider for all languages
+        const provider = monacoInstance.languages.registerInlineCompletionsProvider(
+            { pattern: "**" }, // Works for all file types
+            {
+                provideInlineCompletions: async (model, position, context, token) => {
+                    if (!aiEnabledRef.current) return { items: [] };
 
-                    return {
-                        suggestions: verilogSnippets.map((snippet, idx) => ({
-                            label: snippet.label,
-                            kind: monacoInstance.languages.CompletionItemKind
-                                .Snippet,
-                            insertText: snippet.insertText,
-                            insertTextRules:
-                                monacoInstance.languages
-                                    .CompletionItemInsertTextRule
-                                    .InsertAsSnippet,
-                            detail: snippet.detail,
-                            documentation: snippet.documentation,
+                    const offset = model.getOffsetAt(position);
+                    const fullText = model.getValue();
+                    const prefix = fullText.slice(0, offset);
+                    const suffix = fullText.slice(offset);
+
+                    // Skip if not enough context
+                    if (prefix.trim().length < 3) return { items: [] };
+
+                    // Skip in comments or strings
+                    const lineText = model.getLineContent(position.lineNumber);
+                    const textBeforeCursor = lineText.slice(0, position.column - 1);
+                    if (textBeforeCursor.includes("//")) return { items: [] };
+                    if ((textBeforeCursor.match(/"/g) || []).length % 2 === 1) return { items: [] };
+
+                    setIsLoadingCompletion(true);
+
+                    try {
+                        const completion = await fetchAICompletion(prefix);
+                        
+                        if (!completion) {
+                            return { items: [] };
+                        }
+
+                        currentSuggestionRef.current = completion;
+
+                        // Return inline completion item
+                        const item: monaco.languages.InlineCompletion = {
+                            insertText: completion,
                             range: new monacoInstance.Range(
                                 position.lineNumber,
                                 position.column,
                                 position.lineNumber,
                                 position.column
                             ),
-                            sortText: `1_${idx}`,
-                        })),
-                    };
-                },
-            });
-
-        // Inline completions provider (ghost text for AI suggestions)
-        const inlineProvider =
-            monacoInstance.languages.registerInlineCompletionsProvider(
-                language,
-                {
-                    provideInlineCompletions: (model, position) => {
-                        // Use CompletionFormatter to properly format inline suggestions
-                        return {
-                            items: suggestionsRef.current.map((suggestion) => {
-                                const formatted = new CompletionFormatter(
-                                    model,
-                                    position
-                                ).format(suggestion.insertText, suggestion.range);
-                                
-                                return {
-                                    insertText: formatted.insertText,
-                                    range: new monacoInstance.Range(
-                                        formatted.range.startLineNumber,
-                                        formatted.range.startColumn,
-                                        formatted.range.endLineNumber,
-                                        formatted.range.endColumn
-                                    ),
-                                    command: undefined,
-                                };
-                            }),
                         };
-                    },
-                    freeInlineCompletions: () => {},
-                }
-            );
+
+                        console.log("[AI Autocomplete] Providing inline completion");
+                        return { items: [item] };
+                    } catch (error) {
+                        console.error("[AI Autocomplete] Provider error:", error);
+                        return { items: [] };
+                    } finally {
+                        setIsLoadingCompletion(false);
+                    }
+                },
+                freeInlineCompletions: () => {
+                    // Cleanup if needed
+                },
+            }
+        );
+
+        inlineProviderRef.current = provider;
 
         return () => {
-            verilogSnippetsProvider.dispose();
-            inlineProvider.dispose();
+            if (provider) {
+                provider.dispose();
+            }
         };
-    }, [monacoInstance, language]);
+    }, [monacoInstance, aiEnabled, fetchAICompletion]);
 
-    // Trigger inline suggestions when suggestions change
-    useEffect(() => {
-        if (!cachedSuggestions.length) return;
-        setTimeout(() => {
-            editorRef.current?.trigger(
-                "keyboard",
-                "editor.action.inlineSuggest.trigger",
-                {}
-            );
-        }, 0);
-    }, [cachedSuggestions]);
-
-    // Cleanup timers
-    useEffect(() => {
-        return () => {
-            clearTimeout(debounceTimer.current);
-        };
-    }, []);
-
+    // Handle editor mount
     const handleEditorMount: OnMount = (editor) => {
         editorRef.current = editor;
+        console.log("[AI Autocomplete] Editor mounted");
 
         // Handle content changes
         editor.onDidChangeModelContent(() => {
             onChange?.(editor.getValue());
-
-            if (aiEnabledRef.current) {
-                suppressRef.current = false;
-                suggestionsRef.current = [];
-                setCachedSuggestions([]);
-                triggerAI();
-            }
-        });
-
-        // Handle key events
-        editor.onKeyUp((e) => {
-            if (e.keyCode === monaco.KeyCode.Escape) {
-                suppressRef.current = true;
-                suggestionsRef.current = [];
-                setCachedSuggestions([]);
-                editor.trigger("keyboard", "hideSuggestWidget", {});
-                return;
-            }
-
-            // Skip trivial keys
-            if (
-                [monaco.KeyCode.Space, monaco.KeyCode.Tab].includes(e.keyCode)
-            ) {
-                return;
-            }
-
-            if (aiEnabledRef.current) {
-                suppressRef.current = false;
-                suggestionsRef.current = [];
-                setCachedSuggestions([]);
-                triggerAI();
-            }
         });
     };
 
-    // If we have proposed code, show diff view
+    // Cleanup
+    useEffect(() => {
+        return () => {
+            clearTimeout(debounceTimer.current);
+            if (inlineProviderRef.current) {
+                inlineProviderRef.current.dispose();
+            }
+        };
+    }, []);
+
+    // Diff view for proposed code
     if (proposedCode) {
         return (
             <div className="flex-1 h-full relative">
-                {/* Control Bar for Diff */}
                 <div className="absolute top-4 right-4 z-50 flex gap-2 bg-white rounded-lg shadow-lg p-2 border"
                      style={{ borderColor: "#D4C4A8" }}>
                     <span className="text-sm font-medium text-ink px-2 py-1">Review Changes</span>
@@ -366,9 +187,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
                         className="px-4 py-1.5 rounded-md text-white font-medium text-sm flex items-center gap-2 transition-all hover:scale-105"
                         style={{ background: "#8B9A7E" }}
                     >
-                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                            <path d="M13.78 4.22a.75.75 0 010 1.06l-7.25 7.25a.75.75 0 01-1.06 0L2.22 9.28a.75.75 0 011.06-1.06L6 10.94l6.72-6.72a.75.75 0 011.06 0z"/>
-                        </svg>
                         Accept
                     </button>
                     <button
@@ -376,9 +194,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
                         className="px-4 py-1.5 rounded-md text-white font-medium text-sm flex items-center gap-2 transition-all hover:scale-105"
                         style={{ background: "#C85C3C" }}
                     >
-                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                            <path d="M3.72 3.72a.75.75 0 011.06 0L8 6.94l3.22-3.22a.75.75 0 111.06 1.06L9.06 8l3.22 3.22a.75.75 0 11-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 01-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 010-1.06z"/>
-                        </svg>
                         Reject
                     </button>
                 </div>
@@ -416,6 +231,13 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
                 </div>
             )}
 
+            {/* Inline suggestion hint */}
+            {aiEnabled && (
+                <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-50 bg-green-600 text-white px-3 py-1.5 rounded-md text-xs font-medium shadow-lg opacity-0 hover:opacity-100 transition-opacity">
+                    AI Autocomplete: Press Tab to accept
+                </div>
+            )}
+
             <Editor
                 height="100%"
                 defaultLanguage={language}
@@ -440,27 +262,20 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
                     formatOnPaste: true,
                     trimAutoWhitespace: true,
                     renderValidationDecorations: "on",
-                    // Inline suggestions (ghost text) - Cursor-like behavior
+                    // Monaco's built-in inline suggestions configuration
                     inlineSuggest: {
                         enabled: aiEnabled,
-                        mode: "prefix",
+                        mode: "subwordSmart",
                         suppressSuggestions: false,
                     },
-                    // Configure quickSuggestions for inline mode when AI is enabled
-                    quickSuggestions: {
-                        other: aiEnabled ? "inline" : true,
-                        comments: false,
-                        strings: false,
-                    },
-                    suggestOnTriggerCharacters: true,
-                    acceptSuggestionOnEnter: "on",
-                    tabCompletion: "on",
-                    wordBasedSuggestions: "off", // Prefer AI over word-based
-                    snippetSuggestions: "top",
-                    suggest: {
-                        preview: true,
-                        showInlineDetails: true,
-                    },
+                    // Disable default Monaco suggestions to avoid conflicts
+                    quickSuggestions: false,
+                    suggestOnTriggerCharacters: false,
+                    wordBasedSuggestions: "off",
+                    snippetSuggestions: "none",
+                    acceptSuggestionOnEnter: "off",
+                    // Tab accepts inline suggestions when available
+                    tabCompletion: "off",
                 }}
             />
         </div>

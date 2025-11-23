@@ -152,6 +152,11 @@ endmodule`,
       xml: "xml",
       yaml: "yaml",
       yml: "yaml",
+      // Verilog extensions
+      v: "verilog",
+      sv: "systemverilog",
+      vh: "verilog",
+      svh: "systemverilog",
     };
     return languageMap[extension || ""] || "plaintext";
   };
