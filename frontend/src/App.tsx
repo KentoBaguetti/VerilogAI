@@ -97,10 +97,17 @@ ${codeValue}
           </Button>
         </Flex>
 
-        <Flex align="center">
-          <Text color="white" mr={2} fontSize="md" fontWeight="semibold">
-            AI Copilot
-          </Text>
+        <Flex align="center" gap={2}>
+          <Box>
+            <Text color="white" fontSize="md" fontWeight="semibold" mb={0}>
+              AI Copilot
+            </Text>
+            {aiCopilotMode && (
+              <Text color="gray.400" fontSize="xs">
+                Tab to accept • Esc to dismiss
+              </Text>
+            )}
+          </Box>
           <Switch
             onChange={() => setAiCopilotMode(!aiCopilotMode)}
             checked={aiCopilotMode}

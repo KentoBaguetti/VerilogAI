@@ -1,35 +1,28 @@
 # app/api/routes/generate.py
 
 from typing import Any, Dict
-import subprocess
 import json
 import traceback
-import os
+import requests
+import re
 
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from google.auth import default
 from google.auth.transport.requests import Request
 from google.auth.exceptions import DefaultCredentialsError
-
-PROJECT_NUMBER = "556201303018"
-LOCATION       = "us-central1"
-ENDPOINT_ID    = "6095566020552949760"
-
-# Dedicated DNS for your endpoint
-DEDICATED_DNS = f"{ENDPOINT_ID}.{LOCATION}-{PROJECT_NUMBER}.prediction.vertexai.goog"
-REST_URL = (
-    f"https://{DEDICATED_DNS}/"
-    f"v1/projects/{PROJECT_NUMBER}/locations/{LOCATION}/"
-    f"endpoints/{ENDPOINT_ID}:predict"
-)
+from app.core.config import settings
 
 router = APIRouter(prefix="/generate", tags=["generate"])
 
 
 class GenerateRequest(BaseModel):
     prompt: str
+    suffix: str = ""
+    max_tokens: int = 150
+    temperature: float = 0.4
 
 
 class GenerateResponse(BaseModel):
@@ -61,73 +54,174 @@ def get_access_token() -> str:
     return creds.token
 
 
+def clean_completion(text: str) -> str:
+    """Clean up the completion text - remove markdown, excessive whitespace"""
+    # Remove code fences
+    text = re.sub(r"^```(?:verilog)?\s*\n?", "", text)
+    text = re.sub(r"\n?```\s*$", "", text)
+
+    # Remove common AI commentary
+    text = re.sub(r"^(Here\'s|Here is|This is).*?:\s*", "", text, flags=re.IGNORECASE)
+
+    # If the completion is just commentary without code, return empty
+    if text.strip() and not any(
+        keyword in text
+        for keyword in [
+            "module",
+            "begin",
+            "end",
+            "always",
+            "assign",
+            "reg",
+            "wire",
+            "input",
+            "output",
+            "//",
+            "/*",
+        ]
+    ):
+        return ""
+
+    return text
+
+
 @router.post("/", response_model=GenerateResponse)
 def generate(req: GenerateRequest):
-    # 1) Validate prompt
+    """Generate code completion (non-streaming)"""
     prompt_text = req.prompt.strip()
+    suffix_text = req.suffix.strip()
+
     if not prompt_text:
         raise HTTPException(status_code=400, detail="Prompt must not be empty.")
-    # 2) Get access token
+
+    # Get access token
     try:
         access_token = get_access_token()
     except RuntimeError as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-    # 4) Confirm that 'curl' is on PATH
-    which_result = subprocess.run(["which", "curl"], capture_output=True, text=True)
-    if which_result.returncode != 0:
-        raise HTTPException(status_code=500, detail="curl not found on PATH")
+    # Build the prompt - Codestral FIM format
+    if suffix_text:
+        # FIM: Fill-in-middle with context
+        final_prompt = f"<fim_prefix>{prompt_text}<fim_suffix>{suffix_text}<fim_middle>"
+    else:
+        # Regular completion
+        final_prompt = prompt_text
 
-    # 5) Build JSON payload
-    payload_dict: Dict[str, Any] = { "model" : "codestral-2501", 
-                                     "prompt" : prompt_text,
-                                     "suffix" : "",
-                                     "max_tokens" : 100,
-                                     "temperature" : 0.6}
-    payload_json = json.dumps(payload_dict)
+    # API endpoint
+    url = f"https://{settings.VERTEX_LOCATION}-aiplatform.googleapis.com/v1/projects/{settings.VERTEX_PROJECT_NUMBER}/locations/{settings.VERTEX_LOCATION}/publishers/mistralai/models/codestral-2501:rawPredict"
 
-    # 6) Build the curl command
-    curl_cmd = [
-        "curl",
-        "-v",               # verbose so we see request/response in logs
-        "-X", "POST",
-        "-H", f"Authorization: Bearer {access_token}",
-        "-H", "Content-Type: application/json",
-        "https://us-central1-aiplatform.googleapis.com/v1/projects/556201303018/locations/us-central1/publishers/mistralai/models/codestral-2501:rawPredict",
-        "-d", payload_json,
-    ]
-    # 7) Run curl and capture output
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/json",
+    }
+
+    payload = {
+        "model": "codestral-2501",
+        "prompt": final_prompt,
+        "max_tokens": req.max_tokens,
+        "temperature": req.temperature,
+        "stop": [
+            "\n\n\n",
+            "endmodule",
+            "endfunction",
+            "endtask",
+        ],  # Stop at logical boundaries
+    }
+
     try:
-        result = subprocess.run(curl_cmd, capture_output=True, text=True, timeout=30)
-    except subprocess.TimeoutExpired as e:
-        raise HTTPException(status_code=500, detail="curl request timed out")
+        response = requests.post(url, json=payload, headers=headers, timeout=10)
+        response.raise_for_status()
+        resp_json = response.json()
 
-    if result.returncode != 0:
-        raise HTTPException(
-            status_code=500,
-            detail=f"curl failed (exit code {result.returncode}): {result.stderr.strip()}"
-        )
-
-    # 8) Parse JSON response
-    try:
-        resp_json = json.loads(result.stdout)
-    except json.JSONDecodeError:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Invalid JSON response from Vertex AI: {result.stdout}"
-        )
-    print(resp_json)
-    # 9) Extract generated text
-    try:
+        # Extract completion
         generated_text = resp_json["choices"][0]["message"]["content"]
+
+        # Clean up the completion
+        generated_text = clean_completion(generated_text)
+
+        return GenerateResponse(text=generated_text)
+
+    except requests.exceptions.Timeout:
+        raise HTTPException(status_code=504, detail="Request timed out")
+    except requests.exceptions.RequestException as e:
+        raise HTTPException(status_code=500, detail=f"API request failed: {str(e)}")
     except (KeyError, IndexError) as e:
         raise HTTPException(
-            status_code=500,
-            detail=f"Unexpected response format: {resp_json}"
+            status_code=500, detail=f"Unexpected response format: {resp_json}"
         )
-    #marker = "\nOutput:\n"
-    #if marker in generated_text:
-        #generated_text = generated_text.split(marker, 1)[1]
 
-    # 10) Return it
-    return GenerateResponse(text=generated_text)
+
+@router.post("/stream")
+async def generate_stream(req: GenerateRequest):
+    """Generate code completion with streaming for real-time feedback"""
+    prompt_text = req.prompt.strip()
+    suffix_text = req.suffix.strip()
+
+    if not prompt_text:
+        raise HTTPException(status_code=400, detail="Prompt must not be empty.")
+
+    try:
+        access_token = get_access_token()
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    # Build FIM prompt
+    if suffix_text:
+        final_prompt = f"<fim_prefix>{prompt_text}<fim_suffix>{suffix_text}<fim_middle>"
+    else:
+        final_prompt = prompt_text
+
+    url = f"https://{settings.VERTEX_LOCATION}-aiplatform.googleapis.com/v1/projects/{settings.VERTEX_PROJECT_NUMBER}/locations/{settings.VERTEX_LOCATION}/publishers/mistralai/models/codestral-2501:streamRawPredict"
+
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/json",
+    }
+
+    payload = {
+        "model": "codestral-2501",
+        "prompt": final_prompt,
+        "max_tokens": req.max_tokens,
+        "temperature": req.temperature,
+        "stream": True,
+        "stop": ["\n\n\n", "endmodule", "endfunction", "endtask"],
+    }
+
+    def stream_generator():
+        try:
+            with requests.post(
+                url, json=payload, headers=headers, stream=True, timeout=15
+            ) as response:
+                response.raise_for_status()
+                accumulated = ""
+
+                for line in response.iter_lines():
+                    if not line:
+                        continue
+
+                    decoded = line.decode("utf-8").strip()
+                    if decoded.startswith("data: "):
+                        decoded = decoded[6:]
+
+                    if decoded == "[DONE]":
+                        break
+
+                    try:
+                        data = json.loads(decoded)
+                        choices = data.get("choices", [])
+                        if choices:
+                            delta = choices[0].get("delta", {})
+                            content = delta.get("content", "")
+                            if content:
+                                accumulated += content
+                                # Clean and yield incrementally
+                                cleaned = clean_completion(accumulated)
+                                yield f"data: {json.dumps({'text': cleaned})}\n\n"
+                    except json.JSONDecodeError:
+                        continue
+
+        except Exception as e:
+            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+
+    return StreamingResponse(stream_generator(), media_type="text/event-stream")
