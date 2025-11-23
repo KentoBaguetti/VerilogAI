@@ -48,7 +48,7 @@ def generate(req: GenerateRequest):
     user_code = req.prompt.strip()
     if not user_code:
         raise HTTPException(status_code=400, detail="Prompt must not be empty.")
-    
+
     # 2) Check for OpenAI API key
     if not settings.OPENAI_API_KEY:
         raise HTTPException(

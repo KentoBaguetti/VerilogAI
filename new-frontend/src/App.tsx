@@ -94,9 +94,9 @@ const App: React.FC = () => {
       path: "/modules",
       children: [
         {
-          name: "gate.v",
+          name: "and_gate.v",
           type: "file",
-          path: "/modules/gate.v",
+          path: "/modules/and_gate.v",
           content: `module and_gate (
     input  wire a,
     input  wire b,
@@ -711,10 +711,31 @@ endmodule`,
 
     // Find module and testbench
     const fileName = selectedFile.split("/").pop() || "";
-    const moduleName = fileName.replace(/\.(v|sv)$/i, "");
+    const currentFile = findFileByPath(files, selectedFile);
+    
+    // Extract module name from file CONTENT, not filename
+    const extractModuleName = (content: string): string => {
+      const match = content.match(/module\s+(\w+)/);
+      return match ? match[1] : "";
+    };
+    
+    const moduleNameFromContent = currentFile?.content ? extractModuleName(currentFile.content) : "";
+    const moduleNameFromFile = fileName.replace(/\.(v|sv)$/i, "");
+    
+    // Use content-based name if available, otherwise fall back to filename
+    const moduleName = moduleNameFromContent || moduleNameFromFile;
+
+    console.log("=== SIMULATION START ===");
+    console.log("Selected file:", selectedFile);
+    console.log("File name:", fileName);
+    console.log("Module name from content:", moduleNameFromContent);
+    console.log("Module name from file:", moduleNameFromFile);
+    console.log("Using module name:", moduleName);
+    console.log("Current files state:", JSON.stringify(files, null, 2));
 
     // Check if this is a testbench file
     const isTestbench = fileName.includes("_tb");
+    console.log("Is testbench?:", isTestbench);
 
     let moduleFile: FileItem | null = null;
     let testbenchFile: FileItem | null = null;
@@ -722,12 +743,74 @@ endmodule`,
     if (isTestbench) {
       // Current file is testbench, find the module
       testbenchFile = findFileByPath(files, selectedFile);
+      console.log("✅ Testbench file found:", testbenchFile?.path, "Content length:", testbenchFile?.content?.length);
+      
       const moduleFileName = fileName.replace("_tb", "");
-      const modulePath = selectedFile.replace(fileName, moduleFileName);
-      moduleFile = findFileByPath(files, modulePath);
+      console.log("🔍 Looking for module file:", moduleFileName);
+      
+      // Search for module in common locations
+      const possiblePaths = [
+        `/modules/${moduleFileName}`,
+        `/${moduleFileName}`,
+        selectedFile.replace(fileName, moduleFileName), // same directory
+      ];
+      
+      for (const path of possiblePaths) {
+        console.log("🔍 Checking path:", path);
+        moduleFile = findFileByPath(files, path);
+        if (moduleFile) {
+          console.log("✅ Found module at:", path);
+          break;
+        }
+      }
+      
+      if (!moduleFile) {
+        console.log("❌ Module not found by filename, searching by module name in content...");
+        // Extract base module name (without _tb)
+        const baseModuleName = moduleName.replace("_tb", "");
+        console.log("🔍 Searching for module definition:", baseModuleName);
+        
+        // Search for module by content (module name might differ from filename)
+        const searchByContent = (items: FileItem[]): FileItem | null => {
+          for (const item of items) {
+            if (item.type === "file" && item.name.match(/\.(v|sv)$/i)) {
+              // Check if file contains the module definition
+              if (item.content && item.content.includes(`module ${baseModuleName}`)) {
+                console.log("✅ Found module by content in:", item.path);
+                return item;
+              }
+            }
+            if (item.children) {
+              const found = searchByContent(item.children);
+              if (found) return found;
+            }
+          }
+          return null;
+        };
+        
+        moduleFile = searchByContent(files);
+        
+        // If still not found, try finding any .v file in /modules/
+        if (!moduleFile) {
+          console.log("❌ Still not found, looking for any .v file in /modules/...");
+          const modulesFolder = findFileByPath(files, "/modules");
+          if (modulesFolder?.children && modulesFolder.children.length > 0) {
+            // Get first .v file
+            const firstVFile = modulesFolder.children.find(
+              (f) => f.type === "file" && f.name.match(/\.(v|sv)$/i)
+            );
+            if (firstVFile) {
+              console.log("✅ Using first .v file found:", firstVFile.path);
+              moduleFile = firstVFile;
+            }
+          }
+        }
+      }
     } else {
       // Current file is module, find testbench
       moduleFile = findFileByPath(files, selectedFile);
+      console.log("✅ Module file found:", moduleFile?.path, "Content length:", moduleFile?.content?.length);
+      
       const testbenchPath = `/testbenches/${moduleName}_tb.v`;
       console.log("🔍 Looking for testbench at:", testbenchPath);
       testbenchFile = findFileByPath(files, testbenchPath);
@@ -744,15 +827,36 @@ endmodule`,
       }
 
       if (testbenchFile) {
-        console.log("✅ Found testbench:", testbenchFile.path);
+        console.log("✅ Found testbench:", testbenchFile.path, "Content length:", testbenchFile.content?.length);
       } else {
         console.log("❌ No testbench found for:", moduleName);
       }
     }
 
     // Validate we have both files
+    console.log("📋 Final file assignments:");
+    console.log("  Module:", moduleFile?.path, "- Content length:", moduleFile?.content?.length);
+    console.log("  Testbench:", testbenchFile?.path, "- Content length:", testbenchFile?.content?.length);
+    
     if (!moduleFile || !moduleFile.content) {
-      alert("Could not find module file or file is empty");
+      console.error("❌ Module validation failed:", {
+        moduleFile: moduleFile?.path,
+        hasContent: !!moduleFile?.content,
+        isTestbench,
+        fileName,
+        moduleName,
+      });
+      
+      alert(
+        `Could not find module file!\n\n` +
+        `Searched for: ${moduleName.replace("_tb", "")}\n` +
+        `Testbench: ${fileName}\n\n` +
+        `Please make sure:\n` +
+        `1. The module file exists in /modules/\n` +
+        `2. The module definition matches the testbench name\n` +
+        `3. Try opening the module file first, then click Run\n\n` +
+        `Check the browser console (F12) for more details.`
+      );
       return;
     }
 
@@ -762,6 +866,48 @@ endmodule`,
       );
       return;
     }
+    
+    // CRITICAL: Verify we're not sending the same file twice!
+    if (moduleFile.path === testbenchFile.path) {
+      console.error("❌ ERROR: Module and testbench are the SAME file!");
+      alert(
+        `Error: Module and testbench are the same file!\n\n` +
+        `File: ${moduleFile.path}\n\n` +
+        `This shouldn't happen. Please:\n` +
+        `1. Click on the module file (e.g., gate.v)\n` +
+        `2. Then click Run\n\n` +
+        `Or report this bug.`
+      );
+      return;
+    }
+    
+    // Check that module doesn't contain testbench code
+    const moduleFirstLine = moduleFile.content.split('\n')[0];
+    const testbenchFirstLine = testbenchFile.content.split('\n')[0];
+    
+    console.log("Module first line:", moduleFirstLine);
+    console.log("Testbench first line:", testbenchFirstLine);
+    
+    // CRITICAL CHECK: Module should not be a testbench!
+    if (moduleFirstLine.includes("_tb")) {
+      console.error("❌ CRITICAL: Module file contains '_tb' in first line!");
+      console.error("Module path:", moduleFile.path);
+      console.error("Module content:", moduleFile.content.substring(0, 300));
+      
+      alert(
+        `ERROR: Wrong file detected as module!\n\n` +
+        `The system tried to use a testbench as the module.\n\n` +
+        `WORKAROUND:\n` +
+        `1. Close this alert\n` +
+        `2. Click on the actual MODULE file in /modules/\n` +
+        `3. Click Run again\n\n` +
+        `Make sure you click the MODULE file, not the testbench!\n` +
+        `Module should be: ${moduleName.replace("_tb", "")}.v`
+      );
+      return;
+    }
+    
+    console.log("✅ Files validated, proceeding with simulation...");
 
     setIsCompiling(true);
     setOutputPanelOpen(true);
@@ -777,6 +923,10 @@ endmodule`,
     ]);
 
     try {
+      console.log("🚀 Sending to backend:");
+      console.log("  Module code (first 100 chars):", moduleFile.content.substring(0, 100));
+      console.log("  Testbench code (first 100 chars):", testbenchFile.content.substring(0, 100));
+      
       const response = await fetch(`${apiUrl}/api/v1/simulate/`, {
         method: "POST",
         headers: {
