@@ -18,7 +18,6 @@ class SimulateResponse(BaseModel):
 @router.post("/", response_model=SimulateResponse)
 def simulate(req: SimulateRequest):
     logs = ""
-    wave_output_path = "/wave/test.vcd"  # final location served to frontend and gtkwave
 
     with tempfile.TemporaryDirectory() as tmpdir:
         module_v = os.path.join(tmpdir, "module.v")
@@ -58,19 +57,16 @@ def simulate(req: SimulateRequest):
 
         os.chdir(old_cwd)  # Restore original directory
 
+        # Check if VCD file was generated
         if os.path.exists(vcd_path):
-            shutil.copyfile(vcd_path, wave_output_path)
-            # Create trigger file
-            with open("/wave/trigger-gtkwave.txt", "w") as trig:
-                trig.write("show")
+            logs += "\n✅ VCD waveform file generated successfully.\n"
         else:
-            logs += "\n[Warning] No test.vcd found.\n"
+            logs += "\n[Info] No VCD file generated (testbench may not dump waveforms).\n"
 
     return SimulateResponse(logs=logs)
 
 @router.get("/vcd")
 def get_vcd():
-    path = "/wave/test.vcd"
-    if os.path.exists(path):
-        return FileResponse(path, media_type="text/plain", filename="test.vcd")
-    raise HTTPException(status_code=404, detail="VCD file not found.")
+    # VCD files are in temp directories and cleaned up after simulation
+    # For local execution, waveforms are generated but not persisted
+    raise HTTPException(status_code=404, detail="VCD file not available (local execution)")
