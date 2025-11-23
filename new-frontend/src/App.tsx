@@ -7,6 +7,7 @@ import CodeEditor from "./components/CodeEditor";
 import Resizer from "./components/Resizer";
 import CreateFileModal from "./components/CreateFileModal";
 import UploadModal from "./components/UploadModal";
+import SimulationOutput from "./components/SimulationOutput";
 import type { FileItem, Message, Version, ExpandedState } from "./types";
 
 interface ChatContext {
@@ -108,6 +109,12 @@ endmodule`,
         },
       ],
     },
+    {
+      name: "testbenches",
+      type: "folder",
+      path: "/testbenches",
+      children: [],
+    },
   ]);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [currentContent, setCurrentContent] = useState("");
@@ -117,8 +124,8 @@ endmodule`,
   const [sidebarWidth, setSidebarWidth] = useState(280);
   const [chatWidth, setChatWidth] = useState(400);
   const [expanded, setExpanded] = useState<ExpandedState>({
-    "/src": true,
-    "/public": true,
+    "/modules": true,
+    "/testbenches": true,
   });
   const [versions, setVersions] = useState<Version[]>([]);
   const [aiEnabled, setAiEnabled] = useState(true); // AI autocomplete enabled by default
@@ -139,6 +146,11 @@ endmodule`,
 
   // Testbench generation state
   const [isGeneratingTB, setIsGeneratingTB] = useState(false);
+
+  // Simulation state
+  const [isCompiling, setIsCompiling] = useState(false);
+  const [simulationLogs, setSimulationLogs] = useState("");
+  const [outputPanelOpen, setOutputPanelOpen] = useState(false);
 
   const getLanguageFromFilename = (filename: string): string => {
     const extension = filename.split(".").pop()?.toLowerCase();
@@ -201,7 +213,7 @@ endmodule`,
         return item;
       });
     };
-    setFiles(updateFiles(files));
+    setFiles((prev) => updateFiles(prev));
   };
 
   // Open modal to create a new file
@@ -249,13 +261,15 @@ endmodule`,
 
     // Handle root level
     if (folderPath === "/") {
-      if (files.some((item) => item.name === fileName)) {
-        alert("A file with this name already exists!");
-        return;
-      }
-      setFiles([...files, newFile]);
+      setFiles((prev) => {
+        if (prev.some((item) => item.name === fileName)) {
+          alert("A file with this name already exists!");
+          return prev;
+        }
+        return [...prev, newFile];
+      });
     } else {
-      setFiles(addFile(files));
+      setFiles((prev) => addFile(prev));
     }
 
     // Expand the parent folder
@@ -299,13 +313,15 @@ endmodule`,
 
     // Handle root level
     if (folderPath === "/") {
-      if (files.some((item) => item.name === folderName)) {
-        alert("A folder with this name already exists!");
-        return;
-      }
-      setFiles([...files, newFolder]);
+      setFiles((prev) => {
+        if (prev.some((item) => item.name === folderName)) {
+          alert("A folder with this name already exists!");
+          return prev;
+        }
+        return [...prev, newFolder];
+      });
     } else {
-      setFiles(addFolder(files));
+      setFiles((prev) => addFolder(prev));
     }
 
     // Expand the parent folder and the new folder
@@ -330,7 +346,7 @@ endmodule`,
       });
     };
 
-    setFiles(deleteItem(files));
+    setFiles((prev) => deleteItem(prev));
 
     // If the deleted file was selected, clear selection
     if (selectedFile === path) {
@@ -595,22 +611,6 @@ endmodule`,
       const moduleName = data.module_name || "module";
       const tbFileName = `${moduleName}_tb.v`;
 
-      // Ensure testbenches folder exists
-      let testbenchesFolder = findFileByPath(files, "/testbenches");
-
-      if (!testbenchesFolder) {
-        // Create testbenches folder
-        const newFolder: FileItem = {
-          name: "testbenches",
-          type: "folder",
-          path: "/testbenches",
-          children: [],
-        };
-        setFiles((prev) => [...prev, newFolder]);
-        setExpanded((prev) => ({ ...prev, "/testbenches": true }));
-        testbenchesFolder = newFolder;
-      }
-
       // Create the testbench file
       const tbFile: FileItem = {
         name: tbFileName,
@@ -619,9 +619,32 @@ endmodule`,
         content: testbenchCode,
       };
 
-      // Add file to testbenches folder
-      const addTBFile = (items: FileItem[]): FileItem[] => {
-        return items.map((item) => {
+      console.log("✅ Creating testbench:", tbFile.path);
+      console.log("📁 Testbench name:", tbFileName);
+
+      // Add testbench to file tree (create folder if needed)
+      setFiles((prev) => {
+        // Check if testbenches folder exists
+        const testbenchesExists = prev.some(
+          (item) => item.path === "/testbenches" && item.type === "folder"
+        );
+
+        if (!testbenchesExists) {
+          // Create folder with the testbench file
+          console.log("📁 Creating /testbenches folder");
+          return [
+            ...prev,
+            {
+              name: "testbenches",
+              type: "folder",
+              path: "/testbenches",
+              children: [tbFile],
+            },
+          ];
+        }
+
+        // Folder exists, add file to it
+        return prev.map((item) => {
           if (item.path === "/testbenches" && item.type === "folder") {
             const children = item.children || [];
             // Check if file already exists, replace it
@@ -629,20 +652,18 @@ endmodule`,
               (c) => c.name === tbFileName
             );
             if (existingIndex >= 0) {
+              console.log("🔄 Replacing existing testbench");
               const newChildren = [...children];
               newChildren[existingIndex] = tbFile;
               return { ...item, children: newChildren };
             }
+            console.log("➕ Adding testbench to folder");
             return { ...item, children: [...children, tbFile] };
-          }
-          if (item.children) {
-            return { ...item, children: addTBFile(item.children) };
           }
           return item;
         });
-      };
+      });
 
-      setFiles(addTBFile);
       setExpanded((prev) => ({ ...prev, "/testbenches": true }));
 
       // Auto-select and open the generated testbench
@@ -681,6 +702,152 @@ endmodule`,
       });
     } finally {
       setIsGeneratingTB(false);
+    }
+  };
+
+  // Compile and run simulation
+  const handleCompileAndRun = async () => {
+    if (!selectedFile || isCompiling) return;
+
+    // Find module and testbench
+    const fileName = selectedFile.split("/").pop() || "";
+    const moduleName = fileName.replace(/\.(v|sv)$/i, "");
+
+    // Check if this is a testbench file
+    const isTestbench = fileName.includes("_tb");
+
+    let moduleFile: FileItem | null = null;
+    let testbenchFile: FileItem | null = null;
+
+    if (isTestbench) {
+      // Current file is testbench, find the module
+      testbenchFile = findFileByPath(files, selectedFile);
+      const moduleFileName = fileName.replace("_tb", "");
+      const modulePath = selectedFile.replace(fileName, moduleFileName);
+      moduleFile = findFileByPath(files, modulePath);
+    } else {
+      // Current file is module, find testbench
+      moduleFile = findFileByPath(files, selectedFile);
+      const testbenchPath = `/testbenches/${moduleName}_tb.v`;
+      console.log("🔍 Looking for testbench at:", testbenchPath);
+      testbenchFile = findFileByPath(files, testbenchPath);
+
+      // Also check in same directory
+      if (!testbenchFile) {
+        const dirPath = selectedFile.substring(
+          0,
+          selectedFile.lastIndexOf("/")
+        );
+        const testbenchPath2 = `${dirPath}/${moduleName}_tb.v`;
+        console.log("🔍 Also checking:", testbenchPath2);
+        testbenchFile = findFileByPath(files, testbenchPath2);
+      }
+
+      if (testbenchFile) {
+        console.log("✅ Found testbench:", testbenchFile.path);
+      } else {
+        console.log("❌ No testbench found for:", moduleName);
+      }
+    }
+
+    // Validate we have both files
+    if (!moduleFile || !moduleFile.content) {
+      alert("Could not find module file or file is empty");
+      return;
+    }
+
+    if (!testbenchFile || !testbenchFile.content) {
+      alert(
+        `No testbench found for ${moduleName}.v\n\nPlease:\n1. Generate a testbench using "Gen TB" button\n2. Or create ${moduleName}_tb.v manually`
+      );
+      return;
+    }
+
+    setIsCompiling(true);
+    setOutputPanelOpen(true);
+    setSimulationLogs("Starting compilation...\n");
+
+    // Add message to chat
+    setMessages((prev) => [
+      ...prev,
+      {
+        role: "assistant",
+        content: `🔄 **Compiling and simulating...**\n\nModule: \`${moduleFile.name}\`\nTestbench: \`${testbenchFile.name}\`\n\nThis may take a few seconds.`,
+      },
+    ]);
+
+    try {
+      const response = await fetch(`${apiUrl}/api/v1/simulate/`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          code: moduleFile.content,
+          testbench: testbenchFile.content,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.detail || `Server error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      setSimulationLogs(data.logs);
+
+      // Check for errors in logs
+      const hasError = data.logs.toLowerCase().includes("error");
+
+      // Update chat with result
+      setMessages((prev) => {
+        const newMessages = [...prev];
+        newMessages.pop(); // Remove "compiling" message
+
+        if (hasError) {
+          newMessages.push({
+            role: "assistant",
+            content: `❌ **Compilation/Simulation failed**\n\nCheck the output panel below for details.\n\nCommon issues:\n- Syntax errors in module or testbench\n- Missing ports in DUT instantiation\n- Timing issues\n\nTip: Try regenerating the testbench or fix the errors manually.`,
+          });
+        } else {
+          newMessages.push({
+            role: "assistant",
+            content: `✅ **Simulation complete!**\n\nModule: \`${
+              moduleFile.name
+            }\`\nTestbench: \`${
+              testbenchFile.name
+            }\`\n\nCheck the output panel for simulation logs.\n\n${
+              data.logs.includes("test.vcd")
+                ? "📊 **Waveform generated!** VCD file ready for viewing."
+                : ""
+            }`,
+          });
+        }
+
+        return newMessages;
+      });
+    } catch (error) {
+      console.error("Simulation error:", error);
+      setSimulationLogs(
+        `Error: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }\n\nPlease check:\n- Backend is running (docker-compose up)\n- Module and testbench are valid Verilog\n- No syntax errors`
+      );
+
+      // Update chat with error
+      setMessages((prev) => {
+        const newMessages = [...prev];
+        newMessages.pop();
+        newMessages.push({
+          role: "assistant",
+          content: `❌ **Simulation failed**\n\nError: ${
+            error instanceof Error ? error.message : "Unknown error"
+          }\n\nPlease check:\n- Backend is running\n- Files are valid Verilog\n- Check output panel for details`,
+        });
+        return newMessages;
+      });
+    } finally {
+      setIsCompiling(false);
     }
   };
 
@@ -732,7 +899,7 @@ endmodule`,
             return [...prev, newFile];
           });
         } else {
-          setFiles(addFile);
+          setFiles((prev) => addFile(prev));
         }
 
         // Expand the target folder
@@ -842,6 +1009,8 @@ endmodule`,
         onSaveVersion={handleSaveVersion}
         onGenerateTestbench={handleGenerateTestbench}
         isGeneratingTestbench={isGeneratingTB}
+        onCompileAndRun={handleCompileAndRun}
+        isCompiling={isCompiling}
         aiEnabled={aiEnabled}
         onToggleAI={() => setAiEnabled(!aiEnabled)}
       />
@@ -863,23 +1032,31 @@ endmodule`,
         <Resizer onResize={(e) => handleResize(e, "sidebar")} />
 
         <div className="flex-1 flex flex-col bg-white">
-          {selectedFile ? (
-            <CodeEditor
-              value={currentContent}
-              language={currentLanguage}
-              onChange={handleEditorChange}
-              aiEnabled={aiEnabled}
-              apiUrl={apiUrl}
-              theme="vs"
-              proposedCode={proposedCode}
-              onAcceptProposal={handleAcceptProposedCode}
-              onRejectProposal={handleRejectProposedCode}
-            />
-          ) : (
-            <div className="flex-1 flex items-center justify-center text-ink opacity-50">
-              <p>Select a file to start editing</p>
-            </div>
-          )}
+          <div className="flex-1 overflow-hidden">
+            {selectedFile ? (
+              <CodeEditor
+                value={currentContent}
+                language={currentLanguage}
+                onChange={handleEditorChange}
+                aiEnabled={aiEnabled}
+                apiUrl={apiUrl}
+                theme="vs"
+                proposedCode={proposedCode}
+                onAcceptProposal={handleAcceptProposedCode}
+                onRejectProposal={handleRejectProposedCode}
+              />
+            ) : (
+              <div className="flex-1 flex items-center justify-center text-ink opacity-50">
+                <p>Select a file to start editing</p>
+              </div>
+            )}
+          </div>
+
+          <SimulationOutput
+            logs={simulationLogs}
+            isOpen={outputPanelOpen}
+            onClose={() => setOutputPanelOpen(false)}
+          />
         </div>
 
         <Resizer onResize={(e) => handleResize(e, "chat")} />
