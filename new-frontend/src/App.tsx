@@ -356,13 +356,29 @@ endmodule`,
   };
 
   const handleFileSelect = (file: FileItem) => {
+    console.log("📂 Attempting to select file:", file.path);
+    console.log("📝 Current selected file:", selectedFile);
+
     // Save current file content before switching (even if empty!)
     if (selectedFile) {
+      console.log("💾 Saving current file content:", selectedFile);
       updateFileContent(selectedFile, currentContent);
     }
 
+    // Find the FRESH file from current state
+    const freshFile = findFileByPath(files, file.path);
+    if (!freshFile) {
+      console.error("❌ Could not find file:", file.path);
+      return;
+    }
+
+    const freshContent = freshFile.content || "";
+    console.log("✅ Found fresh file, content length:", freshContent.length);
+    console.log("📝 First 50 chars:", freshContent.substring(0, 50));
+
+    // Update all state together
     setSelectedFile(file.path);
-    setCurrentContent(file.content || "");
+    setCurrentContent(freshContent);
     setCurrentLanguage(getLanguageFromFilename(file.name));
   };
 
@@ -1145,9 +1161,8 @@ endmodule`,
   const handleEditorChange = (value: string | undefined) => {
     const newContent = value || "";
     setCurrentContent(newContent);
-    if (selectedFile) {
-      updateFileContent(selectedFile, newContent);
-    }
+    // Don't save on every keystroke - only save when switching files
+    // This prevents race conditions where the wrong content gets saved to wrong file
   };
 
   const handleAcceptProposedCode = () => {
