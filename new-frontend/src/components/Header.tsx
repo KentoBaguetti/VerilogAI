@@ -6,6 +6,7 @@ interface HeaderProps {
     onUploadClick: () => void;
     onDownload: () => void;
     onSaveVersion: () => void;
+    onGenerateTestbench?: () => void;
     aiEnabled?: boolean;
     onToggleAI?: () => void;
 }
@@ -15,6 +16,7 @@ const Header: React.FC<HeaderProps> = ({
     onUploadClick,
     onDownload,
     onSaveVersion,
+    onGenerateTestbench,
     aiEnabled = false,
     onToggleAI,
 }) => {
@@ -69,6 +71,25 @@ const Header: React.FC<HeaderProps> = ({
                     </button>
                 )}
 
+                {onGenerateTestbench && (
+                    <button
+                        onClick={onGenerateTestbench}
+                        disabled={!selectedFile}
+                        className="flex items-center gap-2 px-4 py-2 rounded-md transition-all hover:scale-105 disabled:opacity-50 text-black"
+                        style={{ background: selectedFile ? "#8B9A7E" : "#ccc" }}
+                        title="Generate Testbench (VerilogAI-TB)"
+                    >
+                        <svg
+                            width="16"
+                            height="16"
+                            viewBox="0 0 16 16"
+                            fill="currentColor"
+                        >
+                            <path d="M8 2a.5.5 0 0 1 .5.5v5h5a.5.5 0 0 1 0 1h-5v5a.5.5 0 0 1-1 0v-5h-5a.5.5 0 0 1 0-1h5v-5A.5.5 0 0 1 8 2Z" />
+                        </svg>
+                        <span className="text-sm">Gen TB</span>
+                    </button>
+                )}
                 <button
                     onClick={onUploadClick}
                     className="flex items-center gap-2 px-4 py-2 rounded-md transition-all hover:scale-105 bg-sage text-black"

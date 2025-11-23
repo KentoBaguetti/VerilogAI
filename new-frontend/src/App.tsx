@@ -137,6 +137,9 @@ endmodule`,
   // Upload modal state
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
 
+  // Testbench generation state
+  const [isGeneratingTB, setIsGeneratingTB] = useState(false);
+
   const getLanguageFromFilename = (filename: string): string => {
     const extension = filename.split(".").pop()?.toLowerCase();
     const languageMap: { [key: string]: string } = {
@@ -549,6 +552,118 @@ endmodule`,
     setUploadModalOpen(true);
   };
 
+  // Generate testbench using VerilogAI-TB
+  const handleGenerateTestbench = async () => {
+    if (!selectedFile || !currentContent || isGeneratingTB) return;
+
+    // Only allow .v or .sv files
+    const fileName = selectedFile.split("/").pop() || "";
+    if (!fileName.match(/\.(v|sv)$/i)) {
+      alert("Please select a Verilog (.v) or SystemVerilog (.sv) file");
+      return;
+    }
+
+    setIsGeneratingTB(true);
+
+    try {
+      // Call backend API
+      const response = await fetch(`${apiUrl}/api/v1/tb/`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          prompt: currentContent,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.detail || `Server error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const testbenchCode = data.text;
+      const moduleName = data.module_name || "module";
+      const tbFileName = `${moduleName}_tb.v`;
+
+      // Ensure testbenches folder exists
+      let testbenchesFolder = findFileByPath(files, "/testbenches");
+
+      if (!testbenchesFolder) {
+        // Create testbenches folder
+        const newFolder: FileItem = {
+          name: "testbenches",
+          type: "folder",
+          path: "/testbenches",
+          children: [],
+        };
+        setFiles((prev) => [...prev, newFolder]);
+        setExpanded((prev) => ({ ...prev, "/testbenches": true }));
+        testbenchesFolder = newFolder;
+      }
+
+      // Create the testbench file
+      const tbFile: FileItem = {
+        name: tbFileName,
+        type: "file",
+        path: `/testbenches/${tbFileName}`,
+        content: testbenchCode,
+      };
+
+      // Add file to testbenches folder
+      const addTBFile = (items: FileItem[]): FileItem[] => {
+        return items.map((item) => {
+          if (item.path === "/testbenches" && item.type === "folder") {
+            const children = item.children || [];
+            // Check if file already exists, replace it
+            const existingIndex = children.findIndex(
+              (c) => c.name === tbFileName
+            );
+            if (existingIndex >= 0) {
+              const newChildren = [...children];
+              newChildren[existingIndex] = tbFile;
+              return { ...item, children: newChildren };
+            }
+            return { ...item, children: [...children, tbFile] };
+          }
+          if (item.children) {
+            return { ...item, children: addTBFile(item.children) };
+          }
+          return item;
+        });
+      };
+
+      setFiles(addTBFile);
+      setExpanded((prev) => ({ ...prev, "/testbenches": true }));
+
+      // Auto-select and open the generated testbench
+      setTimeout(() => {
+        setSelectedFile(tbFile.path);
+        setCurrentContent(testbenchCode);
+        setCurrentLanguage("verilog");
+      }, 100);
+
+      // Add success message to chat
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: `✅ **Testbench generated successfully!**\n\nCreated \`${tbFileName}\` in \`/testbenches/\` folder.\n\nThe testbench includes:\n- Clock and reset generation\n- DUT instantiation\n- Basic stimulus\n- VCD waveform dumping`,
+        },
+      ]);
+    } catch (error) {
+      console.error("Testbench generation error:", error);
+      alert(
+        `Failed to generate testbench: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
+      );
+    } finally {
+      setIsGeneratingTB(false);
+    }
+  };
+
   // Handle actual file upload from modal
   const handleUploadFiles = (uploadedFiles: File[], targetPath: string) => {
     let successCount = 0;
@@ -705,6 +820,7 @@ endmodule`,
         onUploadClick={handleUploadClick}
         onDownload={handleDownload}
         onSaveVersion={handleSaveVersion}
+        onGenerateTestbench={handleGenerateTestbench}
         aiEnabled={aiEnabled}
         onToggleAI={() => setAiEnabled(!aiEnabled)}
       />
