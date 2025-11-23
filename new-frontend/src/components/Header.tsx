@@ -1,9 +1,9 @@
-import React, { useRef } from "react";
+import React from "react";
 import { UploadIcon, DownloadIcon, HistoryIcon } from "./Icons";
 
 interface HeaderProps {
     selectedFile: string | null;
-    onUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
+    onUploadClick: () => void;
     onDownload: () => void;
     onSaveVersion: () => void;
     aiEnabled?: boolean;
@@ -12,14 +12,12 @@ interface HeaderProps {
 
 const Header: React.FC<HeaderProps> = ({
     selectedFile,
-    onUpload,
+    onUploadClick,
     onDownload,
     onSaveVersion,
     aiEnabled = false,
     onToggleAI,
 }) => {
-    const fileInputRef = useRef<HTMLInputElement>(null);
-
     return (
         <div
             className="flex items-center justify-between px-6 py-4 border-b grain bg-cream"
@@ -72,19 +70,13 @@ const Header: React.FC<HeaderProps> = ({
                 )}
 
                 <button
-                    onClick={() => fileInputRef.current?.click()}
+                    onClick={onUploadClick}
                     className="flex items-center gap-2 px-4 py-2 rounded-md transition-all hover:scale-105 bg-sage text-black"
-                    title="Upload File"
+                    title="Upload Files"
                 >
                     <UploadIcon />
                     <span className="text-sm">Upload</span>
                 </button>
-                <input
-                    ref={fileInputRef}
-                    type="file"
-                    onChange={onUpload}
-                    className="hidden"
-                />
                 <button
                     onClick={onDownload}
                     disabled={!selectedFile}

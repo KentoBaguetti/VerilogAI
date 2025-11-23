@@ -6,6 +6,7 @@ import ChatSidebar from "./components/ChatSidebar";
 import CodeEditor from "./components/CodeEditor";
 import Resizer from "./components/Resizer";
 import CreateFileModal from "./components/CreateFileModal";
+import UploadModal from "./components/UploadModal";
 import type { FileItem, Message, Version, ExpandedState } from "./types";
 
 interface ChatContext {
@@ -132,6 +133,9 @@ endmodule`,
     "file"
   );
   const [createModalPath, setCreateModalPath] = useState("/");
+
+  // Upload modal state
+  const [uploadModalOpen, setUploadModalOpen] = useState(false);
 
   const getLanguageFromFilename = (filename: string): string => {
     const extension = filename.split(".").pop()?.toLowerCase();
@@ -518,32 +522,110 @@ endmodule`,
     }
   };
 
-  const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  // Get all folders from the file tree for upload destination
+  const getAllFolders = (): { path: string; name: string }[] => {
+    const folders: { path: string; name: string }[] = [];
 
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const newFile: FileItem = {
-        name: file.name,
-        type: "file",
-        path: `/src/${file.name}`,
-        content: e.target?.result as string,
-      };
-
-      setFiles((prev) => {
-        const newFiles = [...prev];
-        const srcFolder = newFiles.find((f) => f.path === "/src");
-        if (srcFolder && srcFolder.children) {
-          srcFolder.children.push(newFile);
+    const traverse = (items: FileItem[]) => {
+      items.forEach((item) => {
+        if (item.type === "folder") {
+          folders.push({
+            path: item.path,
+            name: item.path === "/" ? "Root" : item.path,
+          });
+          if (item.children) {
+            traverse(item.children);
+          }
         }
-        return newFiles;
       });
     };
-    reader.readAsText(file);
 
-    // Reset input
-    e.target.value = "";
+    traverse(files);
+    return folders;
+  };
+
+  // Open upload modal
+  const handleUploadClick = () => {
+    setUploadModalOpen(true);
+  };
+
+  // Handle actual file upload from modal
+  const handleUploadFiles = (uploadedFiles: File[], targetPath: string) => {
+    let successCount = 0;
+    let lastUploadedFile: FileItem | null = null;
+
+    uploadedFiles.forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const newFile: FileItem = {
+          name: file.name,
+          type: "file",
+          path:
+            targetPath === "/" ? `/${file.name}` : `${targetPath}/${file.name}`,
+          content: e.target?.result as string,
+        };
+
+        lastUploadedFile = newFile;
+
+        const addFile = (items: FileItem[]): FileItem[] => {
+          return items.map((item) => {
+            if (item.path === targetPath && item.type === "folder") {
+              const children = item.children || [];
+              // Check for duplicate names
+              if (children.some((child) => child.name === file.name)) {
+                alert(`File "${file.name}" already exists in ${targetPath}!`);
+                return item;
+              }
+              successCount++;
+              return { ...item, children: [...children, newFile] };
+            }
+            if (item.children) {
+              return { ...item, children: addFile(item.children) };
+            }
+            return item;
+          });
+        };
+
+        // Handle root level
+        if (targetPath === "/") {
+          setFiles((prev) => {
+            if (prev.some((item) => item.name === file.name)) {
+              alert(`File "${file.name}" already exists at root!`);
+              return prev;
+            }
+            successCount++;
+            return [...prev, newFile];
+          });
+        } else {
+          setFiles(addFile);
+        }
+
+        // Expand the target folder
+        setExpanded((prev) => ({ ...prev, [targetPath]: true }));
+
+        // Auto-select the last uploaded file
+        if (
+          uploadedFiles.length === 1 ||
+          file === uploadedFiles[uploadedFiles.length - 1]
+        ) {
+          setTimeout(() => {
+            if (lastUploadedFile) {
+              setSelectedFile(lastUploadedFile.path);
+              setCurrentContent(lastUploadedFile.content || "");
+              setCurrentLanguage(
+                getLanguageFromFilename(lastUploadedFile.name)
+              );
+            }
+          }, 100);
+        }
+      };
+
+      reader.onerror = () => {
+        alert(`Failed to read file: ${file.name}`);
+      };
+
+      reader.readAsText(file);
+    });
   };
 
   const handleResize = (e: React.MouseEvent, type: "sidebar" | "chat") => {
@@ -620,7 +702,7 @@ endmodule`,
     <div className="h-screen flex flex-col bg-warmth">
       <Header
         selectedFile={selectedFile}
-        onUpload={handleUpload}
+        onUploadClick={handleUploadClick}
         onDownload={handleDownload}
         onSaveVersion={handleSaveVersion}
         aiEnabled={aiEnabled}
@@ -685,6 +767,14 @@ endmodule`,
         onCreate={
           createModalType === "file" ? executeCreateFile : executeCreateFolder
         }
+      />
+
+      {/* File Upload Modal */}
+      <UploadModal
+        isOpen={uploadModalOpen}
+        onClose={() => setUploadModalOpen(false)}
+        onUpload={handleUploadFiles}
+        folders={getAllFolders()}
       />
     </div>
   );
