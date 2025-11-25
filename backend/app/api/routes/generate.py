@@ -55,7 +55,7 @@ def get_access_token() -> str:
 
 
 def clean_completion(text: str) -> str:
-    """Clean up the completion text - remove markdown, excessive whitespace"""
+    """Clean up the completion text - remove markdown, excessive whitespace, ensure proper closure"""
     # Remove code fences
     text = re.sub(r"^```(?:verilog)?\s*\n?", "", text)
     text = re.sub(r"\n?```\s*$", "", text)
@@ -85,6 +85,48 @@ def clean_completion(text: str) -> str:
     return text
 
 
+def ensure_proper_closure(text: str, prefix: str) -> str:
+    """Ensure that blocks opened in prefix are properly closed in completion"""
+    combined = prefix + text
+    
+    # Count module/endmodule
+    module_count = len(re.findall(r'\bmodule\s+\w+', combined))
+    endmodule_count = combined.count('endmodule')
+    
+    # If we have unclosed modules, add endmodule
+    if module_count > endmodule_count:
+        # Check if the completion already tried to close but was cut off
+        if not text.strip().endswith('endmodule'):
+            text = text.rstrip() + '\nendmodule'
+    
+    # Count function/endfunction
+    function_count = len(re.findall(r'\bfunction\s+', combined))
+    endfunction_count = combined.count('endfunction')
+    
+    if function_count > endfunction_count:
+        if not text.strip().endswith('endfunction'):
+            text = text.rstrip() + '\nendfunction'
+    
+    # Count task/endtask
+    task_count = len(re.findall(r'\btask\s+', combined))
+    endtask_count = combined.count('endtask')
+    
+    if task_count > endtask_count:
+        if not text.strip().endswith('endtask'):
+            text = text.rstrip() + '\nendtask'
+    
+    # Count begin/end blocks
+    begin_count = combined.count('begin')
+    end_count = len(re.findall(r'\bend\b', combined))
+    
+    if begin_count > end_count:
+        # Add missing 'end' statements
+        for _ in range(begin_count - end_count):
+            text = text.rstrip() + '\n    end'
+    
+    return text
+
+
 @router.post("/", response_model=GenerateResponse)
 def generate(req: GenerateRequest):
     """Generate code completion (non-streaming) using OpenAI"""
@@ -108,7 +150,8 @@ def generate(req: GenerateRequest):
         # Build a completion-focused prompt
         system_prompt = """You are a Verilog code completion assistant. Complete the code naturally and concisely.
 Only return the completion code, no explanations or markdown.
-Focus on syntactically correct Verilog that fits the context."""
+Focus on syntactically correct Verilog that fits the context.
+Always close blocks properly (endmodule, endfunction, endtask, end)."""
 
         response = client.chat.completions.create(
             model="gpt-4o",
@@ -116,15 +159,18 @@ Focus on syntactically correct Verilog that fits the context."""
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": f"Complete this Verilog code:\n\n{prompt_text}"}
             ],
-            max_tokens=req.max_tokens,
+            max_tokens=req.max_tokens * 2,  # Increased to ensure we can fit closing statements
             temperature=req.temperature,
-            stop=["\n\n\n", "endmodule", "endfunction", "endtask"],
+            stop=["\n\n\n\n"],  # Only stop on excessive blank lines (4+ newlines)
         )
 
         generated_text = response.choices[0].message.content or ""
         
         # Clean up the completion
         generated_text = clean_completion(generated_text)
+        
+        # Ensure proper closure of any blocks
+        generated_text = ensure_proper_closure(generated_text, prompt_text)
 
         return GenerateResponse(text=generated_text)
 
