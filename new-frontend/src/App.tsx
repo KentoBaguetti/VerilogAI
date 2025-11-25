@@ -152,6 +152,7 @@ endmodule`,
   const [simulationLogs, setSimulationLogs] = useState("");
   const [outputPanelOpen, setOutputPanelOpen] = useState(false);
   const [vcdId, setVcdId] = useState<string | null>(null);
+  const [outputPanelHeight, setOutputPanelHeight] = useState(300);
 
   const getLanguageFromFilename = (filename: string): string => {
     const extension = filename.split(".").pop()?.toLowerCase();
@@ -1166,6 +1167,26 @@ endmodule`,
     document.addEventListener("mouseup", handleMouseUp);
   };
 
+  const handleOutputPanelResize = (e: React.MouseEvent) => {
+    e.preventDefault();
+    const startY = e.clientY;
+    const startHeight = outputPanelHeight;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const delta = startY - e.clientY; // Inverted because panel grows upward
+      const newHeight = Math.max(150, Math.min(800, startHeight + delta));
+      setOutputPanelHeight(newHeight);
+    };
+
+    const handleMouseUp = () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+    };
+
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+  };
+
   const handleEditorChange = (value: string | undefined) => {
     const newContent = value || "";
     setCurrentContent(newContent);
@@ -1267,6 +1288,8 @@ endmodule`,
             apiUrl={apiUrl}
             isOpen={outputPanelOpen}
             onClose={() => setOutputPanelOpen(false)}
+            height={outputPanelHeight}
+            onResize={handleOutputPanelResize}
           />
         </div>
 

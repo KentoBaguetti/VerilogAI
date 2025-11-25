@@ -7,6 +7,8 @@ interface SimulationOutputProps {
   apiUrl: string;
   isOpen: boolean;
   onClose: () => void;
+  height: number;
+  onResize: (e: React.MouseEvent) => void;
 }
 
 const SimulationOutput: React.FC<SimulationOutputProps> = ({
@@ -15,6 +17,8 @@ const SimulationOutput: React.FC<SimulationOutputProps> = ({
   apiUrl,
   isOpen,
   onClose,
+  height,
+  onResize,
 }) => {
   const [activeTab, setActiveTab] = useState<"logs" | "waveform">("logs");
 
@@ -26,17 +30,33 @@ const SimulationOutput: React.FC<SimulationOutputProps> = ({
 
   return (
     <div
-      className="border-t grain bg-cream"
+      className="border-t grain bg-cream relative"
       style={{
         borderColor: "rgba(42, 37, 32, 0.08)",
-        height: "300px",
+        height: `${height}px`,
         display: "flex",
         flexDirection: "column",
       }}
     >
+      {/* Resize Handle */}
+      <div
+        onMouseDown={onResize}
+        className="absolute top-0 left-0 right-0 h-1 cursor-ns-resize hover:bg-terracotta transition-colors z-10"
+        style={{
+          background: "rgba(42, 37, 32, 0.1)",
+        }}
+        title="Drag to resize"
+      >
+        <div
+          className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-12 h-1 rounded-full"
+          style={{
+            background: "rgba(42, 37, 32, 0.3)",
+          }}
+        />
+      </div>
       {/* Header with Tabs */}
       <div
-        className="flex items-center justify-between px-4 py-2 border-b"
+        className="flex items-center justify-between px-4 py-2 border-b flex-shrink-0"
         style={{ borderColor: "rgba(42, 37, 32, 0.08)" }}
       >
         <div className="flex items-center gap-4">
