@@ -2,11 +2,18 @@ import os
 import shutil
 import tempfile
 import subprocess
+import uuid
+from pathlib import Path
+from typing import Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from fastapi.responses import FileResponse
 
 router = APIRouter(prefix="/simulate", tags=["simulate"])
+
+# VCD storage directory
+VCD_STORAGE = Path("backend/vcd_files")
+VCD_STORAGE.mkdir(parents=True, exist_ok=True)
 
 class SimulateRequest(BaseModel):
     code: str
@@ -14,6 +21,7 @@ class SimulateRequest(BaseModel):
 
 class SimulateResponse(BaseModel):
     logs: str
+    vcd_id: Optional[str] = None
 
 @router.post("/", response_model=SimulateResponse)
 def simulate(req: SimulateRequest):
@@ -57,16 +65,32 @@ def simulate(req: SimulateRequest):
 
         os.chdir(old_cwd)  # Restore original directory
 
-        # Check if VCD file was generated
+        # Check if VCD file was generated and persist it
+        vcd_id = None
         if os.path.exists(vcd_path):
-            logs += "\n✅ VCD waveform file generated successfully.\n"
+            # Generate unique ID for this simulation
+            vcd_id = str(uuid.uuid4())[:8]
+            stored_vcd = VCD_STORAGE / f"{vcd_id}_test.vcd"
+            
+            # Copy VCD to persistent storage
+            shutil.copyfile(vcd_path, stored_vcd)
+            
+            logs += f"\n✅ VCD waveform file generated successfully (ID: {vcd_id}).\n"
         else:
             logs += "\n[Info] No VCD file generated (testbench may not dump waveforms).\n"
 
-    return SimulateResponse(logs=logs)
+    return SimulateResponse(logs=logs, vcd_id=vcd_id)
 
-@router.get("/vcd")
-def get_vcd():
-    # VCD files are in temp directories and cleaned up after simulation
-    # For local execution, waveforms are generated but not persisted
-    raise HTTPException(status_code=404, detail="VCD file not available (local execution)")
+@router.get("/vcd/{vcd_id}")
+def get_vcd(vcd_id: str):
+    """Download VCD file by simulation ID"""
+    vcd_file = VCD_STORAGE / f"{vcd_id}_test.vcd"
+    
+    if not vcd_file.exists():
+        raise HTTPException(status_code=404, detail="VCD file not found or expired")
+    
+    return FileResponse(
+        vcd_file,
+        media_type="application/octet-stream",
+        filename="waveform.vcd"
+    )

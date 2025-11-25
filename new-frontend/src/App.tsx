@@ -151,6 +151,7 @@ endmodule`,
   const [isCompiling, setIsCompiling] = useState(false);
   const [simulationLogs, setSimulationLogs] = useState("");
   const [outputPanelOpen, setOutputPanelOpen] = useState(false);
+  const [vcdId, setVcdId] = useState<string | null>(null);
 
   const getLanguageFromFilename = (filename: string): string => {
     const extension = filename.split(".").pop()?.toLowerCase();
@@ -998,6 +999,13 @@ endmodule`,
       const data = await response.json();
       setSimulationLogs(data.logs);
 
+      // Store VCD ID if available
+      if (data.vcd_id) {
+        setVcdId(data.vcd_id);
+      } else {
+        setVcdId(null);
+      }
+
       // Check for errors in logs
       const hasError = data.logs.toLowerCase().includes("error");
 
@@ -1019,8 +1027,8 @@ endmodule`,
             }\`\nTestbench: \`${
               testbenchFile.name
             }\`\n\nCheck the output panel for simulation logs.\n\n${
-              data.logs.includes("test.vcd")
-                ? "📊 **Waveform generated!** VCD file ready for viewing."
+              data.vcd_id
+                ? "📊 **Waveform generated!** Click the 'Waveform' tab in the output panel to view it."
                 : ""
             }`,
           });
@@ -1255,6 +1263,8 @@ endmodule`,
 
           <SimulationOutput
             logs={simulationLogs}
+            vcdId={vcdId}
+            apiUrl={apiUrl}
             isOpen={outputPanelOpen}
             onClose={() => setOutputPanelOpen(false)}
           />
