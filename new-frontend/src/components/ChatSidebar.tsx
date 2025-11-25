@@ -41,9 +41,11 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
 
   return (
     <div
-      className="flex flex-col border-l grain bg-cream"
+      className="flex flex-col border-l grain bg-cream flex-shrink-0"
       style={{
         width: `${width}px`,
+        minWidth: `${width}px`,
+        maxWidth: `${width}px`,
         borderColor: "rgba(42, 37, 32, 0.08)",
       }}
     >

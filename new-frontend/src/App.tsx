@@ -1245,7 +1245,7 @@ endmodule`,
         onToggleAI={() => setAiEnabled(!aiEnabled)}
       />
 
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 overflow-hidden min-w-0">
         <Sidebar
           files={files}
           selectedFile={selectedFile}
@@ -1261,8 +1261,8 @@ endmodule`,
 
         <Resizer onResize={(e) => handleResize(e, "sidebar")} />
 
-        <div className="flex-1 flex flex-col bg-white">
-          <div className="flex-1 overflow-hidden">
+        <div className="flex-1 flex flex-col bg-white min-w-0 overflow-hidden">
+          <div className="flex-1 overflow-hidden min-h-0">
             {selectedFile ? (
               <CodeEditor
                 value={currentContent}
