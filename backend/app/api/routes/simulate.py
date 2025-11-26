@@ -26,8 +26,18 @@ class SimulateResponse(BaseModel):
 @router.post("/", response_model=SimulateResponse)
 def simulate(req: SimulateRequest):
     logs = ""
+    
+    # Check if iverilog is available
+    try:
+        subprocess.run(["iverilog", "-V"], capture_output=True, check=True)
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        raise HTTPException(
+            status_code=500,
+            detail="iverilog is not installed or not in PATH. Please install iverilog on the server."
+        )
 
-    with tempfile.TemporaryDirectory() as tmpdir:
+    try:
+        with tempfile.TemporaryDirectory() as tmpdir:
         module_v = os.path.join(tmpdir, "module.v")
         tb_v     = os.path.join(tmpdir, "tb.v")
         out_vvp  = os.path.join(tmpdir, "sim.vvp")
@@ -79,7 +89,12 @@ def simulate(req: SimulateRequest):
         else:
             logs += "\n[Info] No VCD file generated (testbench may not dump waveforms).\n"
 
-    return SimulateResponse(logs=logs, vcd_id=vcd_id)
+        return SimulateResponse(logs=logs, vcd_id=vcd_id)
+    except Exception as e:
+        # Catch any unexpected errors and return them properly
+        error_msg = f"Unexpected error during simulation: {str(e)}"
+        logs += f"\n[Error] {error_msg}\n"
+        raise HTTPException(status_code=500, detail=error_msg)
 
 @router.get("/vcd/{vcd_id}")
 def get_vcd(vcd_id: str):
