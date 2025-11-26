@@ -38,12 +38,7 @@ const bounce = keyframes`
   50% { transform: translateY(-5px); }
 `;
 
-const ChatInterface: React.FC<ChatInterfaceProps> = ({
-  editorContent,
-  onSuggestCode,
-  onStreamCode,
-  isStreamingCode,
-}) => {
+const ChatInterface: React.FC<ChatInterfaceProps> = ({ editorContent, onSuggestCode, onStreamCode, isStreamingCode }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -51,7 +46,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { showErrorToast } = useCustomToast();
   const { colorMode } = useColorMode();
-
+  
   // New state to track if we are in "Apply Mode" (direct to editor)
   const [isApplyMode, setIsApplyMode] = useState(false);
 
@@ -77,22 +72,22 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
 
     const userMessage: ChatMessage = { role: "user", content: input };
     setMessages((prev) => [...prev, userMessage]);
-
+    
     const promptText = input;
     setInput("");
     setIsLoading(true);
-
+    
     if (applyToEditor) {
-      setIsApplyMode(true);
+        setIsApplyMode(true);
     }
 
-    const API_URL = import.meta.env.VITE_API_URL || "http://34.83.37.61:8000";
+    const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
     try {
       const response = await fetch(`${API_URL}/api/v1/chat/stream`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("access_token")}`,
+          "Authorization": `Bearer ${localStorage.getItem("access_token")}`
         },
         body: JSON.stringify({
           messages: [...messages, userMessage],
@@ -113,7 +108,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
       const decoder = new TextDecoder();
       let assistantMessage = "";
       let isFirstChunk = true;
-
+      
       // If applying to editor, we'll accumulate code separately to handle potential text+code mix
       let codeAccumulator = "";
       let inCodeBlock = false;
@@ -123,74 +118,69 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
         if (done) break;
 
         const chunk = decoder.decode(value, { stream: true });
-
+        
         if (applyToEditor && onStreamCode) {
-          // Simple heuristic: If we find code block markers, try to extract code
-          // For direct streaming, ideally the backend would just return code if requested.
-          // For now, let's just stream everything to the diff editor so the user sees it building up.
-          // To do this cleanly, we might need to strip markdown if present, but for a "Cursor-like" feel,
-          // usually the agent returns JUST the code when asked to edit.
-
-          // Let's assume for "Apply Edit" mode, we want to stream the raw content to the DiffEditor
-          // But we need to handle the case where the LLM wraps it in ```verilog
-
-          assistantMessage += chunk;
-
-          // VERY BASIC parsing for streaming:
-          // If we detect ```verilog, we start capturing.
-          // Real-time parsing is tricky.
-          // Simpler approach: Stream raw text to the editor, and let the user clean it up,
-          // OR, wait for the full response to "Apply" (which is what we had).
-
-          // Better approach for "Agentic" feel:
-          // Send the chunk directly.
-          // However, the diff editor expects the FULL "modified" string to calculate diffs.
-          // So we must accumulate and send the FULL string so far.
-
-          // Let's try to be smart: If the chunk contains code block markers, we might need to filter.
-          // For now, let's send the accumulated message as the "modified code".
-
-          // Use a regex to strip Markdown wrapping if it looks like a wrapped block
-          let cleanCode = assistantMessage;
-
-          // Robust extraction: Find ONLY the content inside the LAST incomplete or complete code block
-          // If multiple blocks, usually we want the last one or the one matching "verilog"
-
-          // Strategy:
-          // 1. Check if there is a ```verilog marker.
-          // 2. If so, extract content after it.
-          // 3. Remove any trailing ``` if present.
-          // 4. If NO code block, assume the whole text is code (fallback), but usually LLM wraps it.
-
-          const codeBlockMatch = assistantMessage.match(
-            /```(?:verilog)?\n([\s\S]*?)(?:```|$)/
-          );
-          if (codeBlockMatch && codeBlockMatch[1]) {
-            cleanCode = codeBlockMatch[1];
-          } else if (assistantMessage.includes("```")) {
-            // Maybe the block hasn't started the content yet or is just opening
-            // Keep cleanCode as is or handle partial state
-          }
-
-          onStreamCode(cleanCode, isFirstChunk);
-        } else {
-          // Normal Chat Mode
-          if (isFirstChunk) {
-            setMessages((prev) => [
-              ...prev,
-              { role: "assistant", content: "" },
-            ]);
-          }
-
-          assistantMessage += chunk;
-          setMessages((prev) => {
-            const newMessages = [...prev];
-            const lastMsg = newMessages[newMessages.length - 1];
-            if (lastMsg.role === "assistant") {
-              lastMsg.content = assistantMessage;
+            // Simple heuristic: If we find code block markers, try to extract code
+            // For direct streaming, ideally the backend would just return code if requested.
+            // For now, let's just stream everything to the diff editor so the user sees it building up.
+            // To do this cleanly, we might need to strip markdown if present, but for a "Cursor-like" feel,
+            // usually the agent returns JUST the code when asked to edit.
+            
+            // Let's assume for "Apply Edit" mode, we want to stream the raw content to the DiffEditor
+            // But we need to handle the case where the LLM wraps it in ```verilog
+            
+            assistantMessage += chunk;
+            
+            // VERY BASIC parsing for streaming:
+            // If we detect ```verilog, we start capturing.
+            // Real-time parsing is tricky. 
+            // Simpler approach: Stream raw text to the editor, and let the user clean it up, 
+            // OR, wait for the full response to "Apply" (which is what we had).
+            
+            // Better approach for "Agentic" feel:
+            // Send the chunk directly. 
+            // However, the diff editor expects the FULL "modified" string to calculate diffs.
+            // So we must accumulate and send the FULL string so far.
+            
+            // Let's try to be smart: If the chunk contains code block markers, we might need to filter.
+            // For now, let's send the accumulated message as the "modified code".
+            
+            // Use a regex to strip Markdown wrapping if it looks like a wrapped block
+            let cleanCode = assistantMessage;
+            
+            // Robust extraction: Find ONLY the content inside the LAST incomplete or complete code block
+            // If multiple blocks, usually we want the last one or the one matching "verilog"
+            
+            // Strategy:
+            // 1. Check if there is a ```verilog marker.
+            // 2. If so, extract content after it.
+            // 3. Remove any trailing ``` if present.
+            // 4. If NO code block, assume the whole text is code (fallback), but usually LLM wraps it.
+            
+            const codeBlockMatch = assistantMessage.match(/```(?:verilog)?\n([\s\S]*?)(?:```|$)/);
+            if (codeBlockMatch && codeBlockMatch[1]) {
+                cleanCode = codeBlockMatch[1];
+            } else if (assistantMessage.includes("```")) {
+                 // Maybe the block hasn't started the content yet or is just opening
+                 // Keep cleanCode as is or handle partial state
             }
-            return newMessages;
-          });
+            
+            onStreamCode(cleanCode, isFirstChunk);
+        } else {
+            // Normal Chat Mode
+            if (isFirstChunk) {
+              setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
+            }
+            
+            assistantMessage += chunk;
+            setMessages((prev) => {
+              const newMessages = [...prev];
+              const lastMsg = newMessages[newMessages.length - 1];
+              if (lastMsg.role === "assistant") {
+                lastMsg.content = assistantMessage;
+              }
+              return newMessages;
+            });
         }
         isFirstChunk = false;
       }
@@ -206,12 +196,12 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      // Default to normal chat if just pressing enter.
+      // Default to normal chat if just pressing enter. 
       // To do "Apply", we might want a separate button or a modifier key (e.g. Cmd+Enter)
       if (e.metaKey || e.ctrlKey) {
-        handleSendMessage(true); // Command+Enter to Apply
+          handleSendMessage(true); // Command+Enter to Apply
       } else {
-        handleSendMessage(false);
+          handleSendMessage(false);
       }
     }
   };
@@ -272,9 +262,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
             {messages.length === 0 && (
               <Box textAlign="center" py={10} color="gray.500">
                 <Text>Ask me anything about your Verilog code!</Text>
-                <Text fontSize="xs" mt={2}>
-                  ProTip: Cmd+Enter to Edit Code directly
-                </Text>
+                <Text fontSize="xs" mt={2}>ProTip: Cmd+Enter to Edit Code directly</Text>
               </Box>
             )}
 
@@ -314,38 +302,29 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                   >
                     {msg.content}
                     {/* Legacy "Apply Edit" button for chat history items */}
-                    {msg.role === "assistant" &&
-                      msg.content.includes("```verilog") &&
-                      onSuggestCode && (
+                    {msg.role === "assistant" && msg.content.includes("```verilog") && onSuggestCode && (
                         <Box mt={2}>
-                          <IconButton
-                            aria-label="Apply Changes"
-                            size="xs"
-                            colorScheme="teal"
-                            icon={
-                              <Text fontSize="xs" px={1}>
-                                Apply Edit
-                              </Text>
-                            }
-                            onClick={() => {
-                              const match = msg.content.match(
-                                /```verilog\n([\s\S]*?)\n```/
-                              );
-                              if (match && match[1]) {
-                                onSuggestCode(match[1]);
-                              }
-                            }}
-                          />
+                            <IconButton 
+                                aria-label="Apply Changes" 
+                                size="xs" 
+                                colorScheme="teal" 
+                                icon={<Text fontSize="xs" px={1}>Apply Edit</Text>}
+                                onClick={() => {
+                                    const match = msg.content.match(/```verilog\n([\s\S]*?)\n```/);
+                                    if (match && match[1]) {
+                                        onSuggestCode(match[1]);
+                                    }
+                                }}
+                            />
                         </Box>
-                      )}
+                    )}
                   </Box>
                 </HStack>
               </Box>
             ))}
 
             {/* Loading Indicator */}
-            {isLoading &&
-              !isApplyMode &&
+            {isLoading && !isApplyMode &&
               (messages.length === 0 ||
                 messages[messages.length - 1].role === "user") && (
                 <Box alignSelf="flex-start" maxW="85%">
@@ -398,14 +377,14 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                   </HStack>
                 </Box>
               )}
-
-            {/* Applying to Editor Indicator */}
-            {isLoading && isApplyMode && (
-              <Box textAlign="center" color="teal.500" fontSize="sm" py={2}>
-                <Spinner size="xs" mr={2} />
-                Writing to editor...
-              </Box>
-            )}
+              
+             {/* Applying to Editor Indicator */}
+             {isLoading && isApplyMode && (
+                 <Box textAlign="center" color="teal.500" fontSize="sm" py={2}>
+                     <Spinner size="xs" mr={2} />
+                     Writing to editor...
+                 </Box>
+             )}
 
             <div ref={messagesEndRef} />
           </VStack>
@@ -431,7 +410,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                 onClick={() => handleSendMessage(false)}
                 mr={1}
               >
-                Chat
+                  Chat
               </Button>
               <Button
                 size="sm"
@@ -440,7 +419,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                 onClick={() => handleSendMessage(true)}
                 title="Edit Code Directly"
               >
-                Edit
+                  Edit
               </Button>
             </HStack>
           </Box>
