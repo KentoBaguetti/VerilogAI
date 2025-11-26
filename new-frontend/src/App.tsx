@@ -10,6 +10,7 @@ import CreateFileModal from "./components/CreateFileModal";
 import UploadModal from "./components/UploadModal";
 import SimulationOutput from "./components/SimulationOutput";
 import type { FileItem, Message, Version, ExpandedState } from "./types";
+import { API_URL } from "./config";
 
 interface ChatContext {
   code: string;
@@ -37,7 +38,7 @@ async function streamChatResponse(
 
   console.log("Sending chat request:", payload);
 
-  const res = await fetch(`http://localhost:8000/api/v1/chat/stream`, {
+  const res = await fetch(`${API_URL}/api/v1/chat/stream`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -132,7 +133,7 @@ endmodule`,
   });
   const [versions, setVersions] = useState<Version[]>([]);
   const [aiEnabled, setAiEnabled] = useState(true); // AI autocomplete enabled by default
-  const [apiUrl] = useState("http://localhost:8000"); // Default API URL
+  const [apiUrl] = useState(API_URL); // API URL from environment config
   const [isLoadingChat, setIsLoadingChat] = useState(false);
   const [proposedCode, setProposedCode] = useState<string | null>(null);
 
@@ -1042,7 +1043,7 @@ endmodule`,
       setSimulationLogs(
         `Error: ${
           error instanceof Error ? error.message : "Unknown error"
-        }\n\nPlease check:\n- Backend is running (http://localhost:8000)\n- Module and testbench are valid Verilog\n- No syntax errors\n\nTo start backend: cd backend && source venv/bin/activate && uvicorn app.main:app --reload --port 8000`
+        }\n\nPlease check:\n- Backend is running (${API_URL})\n- Module and testbench are valid Verilog\n- No syntax errors\n\nTo start backend: cd backend && source venv/bin/activate && uvicorn app.main:app --reload --port 8000`
       );
 
       // Update chat with error

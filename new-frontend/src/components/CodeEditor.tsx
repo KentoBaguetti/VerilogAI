@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import Editor, { OnMount, useMonaco, DiffEditor } from "@monaco-editor/react";
 import * as monaco from "monaco-editor";
+import { API_URL } from "../config";
 
 interface CodeEditorProps {
   value: string;
@@ -19,7 +20,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
   language,
   onChange,
   aiEnabled = false,
-  apiUrl = "http://localhost:8000",
+  apiUrl = API_URL,
   theme = "vs",
   proposedCode = null,
   onAcceptProposal,

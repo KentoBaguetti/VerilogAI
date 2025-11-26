@@ -28,6 +28,8 @@ origins = [
     "http://127.0.0.1:5173",
     "http://localhost:3000",
     "http://127.0.0.1:3000",
+    # Production frontend origins (add your production frontend URL here)
+    # Example: "http://your-production-frontend-domain.com",
 ]
 # Extend with settings origins if they exist and are not already included
 if settings.all_cors_origins:
