@@ -30,7 +30,9 @@ const App: React.FC = () => {
       );
       setSimLogs(simResp.data.logs);
 
-      const vcdResp = await axios.get("https://api.34-83-146-113.nip.io/api/v1/simulate/vcd");
+      const vcdResp = await axios.get(
+        "https://api.34-83-146-113.nip.io/api/v1/simulate/vcd"
+      );
       setVcdText(vcdResp.data);
       setActiveTab("simulation");
     } catch (err: any) {
@@ -59,7 +61,14 @@ ${codeValue}
 
   return (
     <Box minH="100vh" bg="#282c34" px={6} py={8} fontFamily="Inter, sans-serif">
-      <Heading as="h1" size="2xl" color="white" textAlign="center" mb={6} fontWeight="bold">
+      <Heading
+        as="h1"
+        size="2xl"
+        color="white"
+        textAlign="center"
+        mb={6}
+        fontWeight="bold"
+      >
         VerilogAI
       </Heading>
 
@@ -183,29 +192,31 @@ ${codeValue}
         )}
 
         {activeTab === "simulation" && (
-  <Box mt={4}>
-    <Text color="white" mb={2}>GTKWave Viewer</Text>
-    <Box
-      as="iframe"
-      src="https://gtkwave.34-83-146-113.nip.io/vnc.html"
-      width="100%"
-      height="600px"
-      border="1px solid #ccc"
-      style={{ borderRadius: "8px" }}
-    />
-    {simLogs && (
-      <Box
-        as="pre"
-        mt={4}
-        p={3}
-        bg="#111"
-        color="#0f0"
-        fontFamily="monospace"
-        fontSize="0.85rem"
-        maxH="200px"
-        overflowY="auto"
-        whiteSpace="pre-wrap"
-      >
+          <Box mt={4}>
+            <Text color="white" mb={2}>
+              GTKWave Viewer
+            </Text>
+            <Box
+              as="iframe"
+              src="https://gtkwave.34-83-146-113.nip.io/vnc.html"
+              width="100%"
+              height="600px"
+              border="1px solid #ccc"
+              style={{ borderRadius: "8px" }}
+            />
+            {simLogs && (
+              <Box
+                as="pre"
+                mt={4}
+                p={3}
+                bg="#111"
+                color="#0f0"
+                fontFamily="monospace"
+                fontSize="0.85rem"
+                maxH="200px"
+                overflowY="auto"
+                whiteSpace="pre-wrap"
+              >
                 {simLogs}
               </Box>
             )}
