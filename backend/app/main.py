@@ -28,19 +28,34 @@ origins = [
     "http://127.0.0.1:5173",
     "http://localhost:3000",
     "http://127.0.0.1:3000",
+    "http://34.83.37.61",
+    "https://34.83.37.61",
 ]
+
 # Extend with settings origins if they exist and are not already included
 if settings.all_cors_origins:
     for origin in settings.all_cors_origins:
         if origin not in origins:
             origins.append(origin)
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# For production or non-local environments, allow all origins
+# This is necessary for GCP deployments where frontend domain may vary
+# For local development, use specific origins
+if settings.ENVIRONMENT != "local":
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],  # Allow all origins in production/staging
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+else:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=origins,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
 app.include_router(api_router, prefix=settings.API_V1_STR)
