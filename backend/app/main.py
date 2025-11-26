@@ -29,7 +29,10 @@ origins = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
     "http://34.83.37.61",
+    "http://34.83.37.61:5173",
+    "http://34.83.37.61:8000",
     "https://34.83.37.61",
+    "https://34.83.37.61:5173",
 ]
 
 # Extend with settings origins if they exist and are not already included
@@ -38,18 +41,20 @@ if settings.all_cors_origins:
         if origin not in origins:
             origins.append(origin)
 
-# For production or non-local environments, allow all origins
-# This is necessary for GCP deployments where frontend domain may vary
-# For local development, use specific origins
-if settings.ENVIRONMENT != "local":
+# Configure CORS middleware
+# For production/staging, allow all origins (but without credentials)
+# For local or when GCP origins are detected, use specific origins with credentials
+if settings.ENVIRONMENT == "production" or settings.ENVIRONMENT == "staging":
+    # Production: allow all origins but without credentials (CORS limitation)
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],  # Allow all origins in production/staging
-        allow_credentials=True,
+        allow_origins=["*"],
+        allow_credentials=False,  # Cannot use credentials with wildcard origins
         allow_methods=["*"],
         allow_headers=["*"],
     )
 else:
+    # Local or GCP with known origins: use specific origins with credentials
     app.add_middleware(
         CORSMiddleware,
         allow_origins=origins,
