@@ -1,5 +1,4 @@
 import React, { useState, useRef, useEffect } from "react";
-import type { FileItem } from "../types";
 
 interface UploadModalProps {
   isOpen: boolean;

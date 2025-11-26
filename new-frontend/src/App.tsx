@@ -129,9 +129,8 @@ endmodule`,
   });
   const [versions, setVersions] = useState<Version[]>([]);
   const [aiEnabled, setAiEnabled] = useState(true); // AI autocomplete enabled by default
-  const [apiUrl, setApiUrl] = useState("http://localhost:8000"); // Default API URL
+  const [apiUrl] = useState("http://localhost:8000"); // Default API URL
   const [isLoadingChat, setIsLoadingChat] = useState(false);
-  const [isAgenticMode, setIsAgenticMode] = useState(false);
   const [proposedCode, setProposedCode] = useState<string | null>(null);
 
   // File creation modal state
@@ -438,7 +437,6 @@ endmodule`,
     setMessages(updatedMessages);
     setInputValue("");
     setIsLoadingChat(true);
-    setIsAgenticMode(isAgentic);
 
     // Add empty assistant message that will be filled with streaming content
     const assistantMessageIndex = updatedMessages.length;
@@ -530,7 +528,6 @@ endmodule`,
       });
     } finally {
       setIsLoadingChat(false);
-      setIsAgenticMode(false);
     }
   };
 

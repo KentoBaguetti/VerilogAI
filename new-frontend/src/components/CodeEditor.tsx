@@ -27,7 +27,7 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
 }) => {
     const monacoInstance = useMonaco();
     const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
-    const debounceTimer = useRef<number>();
+    const debounceTimer = useRef<number | undefined>(undefined);
     const [isLoadingCompletion, setIsLoadingCompletion] = useState(false);
     const aiEnabledRef = useRef(aiEnabled);
     const inlineProviderRef = useRef<monaco.IDisposable | null>(null);
@@ -91,13 +91,12 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
         const provider = monacoInstance.languages.registerInlineCompletionsProvider(
             { pattern: "**" }, // Works for all file types
             {
-                provideInlineCompletions: async (model, position, context, token) => {
+                provideInlineCompletions: async (model, position) => {
                     if (!aiEnabledRef.current) return { items: [] };
 
                     const offset = model.getOffsetAt(position);
                     const fullText = model.getValue();
                     const prefix = fullText.slice(0, offset);
-                    const suffix = fullText.slice(offset);
 
                     // Skip if not enough context
                     if (prefix.trim().length < 3) return { items: [] };
@@ -138,9 +137,6 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
                     } finally {
                         setIsLoadingCompletion(false);
                     }
-                },
-                freeInlineCompletions: () => {
-                    // Cleanup if needed
                 },
             }
         );

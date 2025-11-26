@@ -178,7 +178,6 @@ const WaveformViewer: React.FC<WaveformViewerProps> = ({ vcdId, apiUrl }) => {
 
     // Create SVG
     const signalHeight = 60;
-    const signalPadding = 10;
     const leftMargin = 150;
     const rightMargin = 50;
     const topMargin = 30;
@@ -262,7 +261,7 @@ const WaveformViewer: React.FC<WaveformViewerProps> = ({ vcdId, apiUrl }) => {
 
       // Draw waveform
       if (signal.values.length > 0) {
-        drawSignalWave(svg, signal, y, leftMargin, timeWidth, maxTime, signalHeight);
+        drawSignalWave(svg, signal, y, leftMargin, timeWidth, maxTime);
       }
     });
 
@@ -275,8 +274,7 @@ const WaveformViewer: React.FC<WaveformViewerProps> = ({ vcdId, apiUrl }) => {
     y: number,
     leftMargin: number,
     timeWidth: number,
-    maxTime: number,
-    signalHeight: number
+    maxTime: number
   ) {
     const waveHeight = 20;
     const sorted = [...signal.values].sort((a, b) => a.time - b.time);
