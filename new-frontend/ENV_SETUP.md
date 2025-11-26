@@ -31,16 +31,18 @@ VITE_API_URL=http://34.83.37.61:8000
 
 The backend CORS is configured in `backend/app/main.py` and `backend/app/core/config.py`.
 
-For production, you may need to set the `BACKEND_CORS_ORIGINS` environment variable in your backend `.env` file to include your production frontend URL:
+The backend now includes `http://34.83.37.61:5173` in the allowed CORS origins by default.
+
+For additional production frontend URLs, you can set the `BACKEND_CORS_ORIGINS` environment variable in your backend `.env` file (located at the project root, one level above `backend/`):
 
 ```env
-BACKEND_CORS_ORIGINS=http://localhost:5173,http://your-production-frontend-domain.com
+BACKEND_CORS_ORIGINS=http://localhost:5173,http://34.83.37.61:5173,http://your-other-frontend-domain.com
 ```
 
 Or set `FRONTEND_HOST`:
 
 ```env
-FRONTEND_HOST=http://your-production-frontend-domain.com
+FRONTEND_HOST=http://34.83.37.61:5173
 ```
 
 ## Quick Setup
