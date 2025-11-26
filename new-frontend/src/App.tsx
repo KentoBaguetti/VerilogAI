@@ -36,7 +36,11 @@ async function streamChatResponse(
 
   console.log("Sending chat request:", payload);
 
+<<<<<<< HEAD
   const res = await fetch(`http://localhost:8000/api/v1/chat/stream`, {
+=======
+  const res = await fetch(`http://34.83.37.61:8000/api/v1/chat/stream`, {
+>>>>>>> parent of 3dc030f (asd)
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -129,7 +133,11 @@ endmodule`,
   });
   const [versions, setVersions] = useState<Version[]>([]);
   const [aiEnabled, setAiEnabled] = useState(true); // AI autocomplete enabled by default
+<<<<<<< HEAD
   const [apiUrl] = useState("http://localhost:8000"); // Default API URL
+=======
+  const [apiUrl] = useState("http://34.83.37.61:8000"); // Default API URL
+>>>>>>> parent of 3dc030f (asd)
   const [isLoadingChat, setIsLoadingChat] = useState(false);
   const [proposedCode, setProposedCode] = useState<string | null>(null);
 

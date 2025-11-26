@@ -19,7 +19,11 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
     language,
     onChange,
     aiEnabled = false,
+<<<<<<< HEAD
     apiUrl = "http://34.83.37.61:8000",
+=======
+    apiUrl = "http://localhost:8000",
+>>>>>>> parent of 3dc030f (asd)
     theme = "vs",
     proposedCode = null,
     onAcceptProposal,
