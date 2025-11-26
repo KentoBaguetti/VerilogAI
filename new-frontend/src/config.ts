@@ -23,9 +23,8 @@ const getApiUrl = (): string => {
 
 export const API_URL = getApiUrl();
 
-// Log the API URL in development for debugging
-if (import.meta.env.DEV) {
-  console.log('API URL:', API_URL);
-  console.log('Environment mode:', import.meta.env.MODE);
-}
+// Log the API URL for debugging (both dev and production)
+console.log('🔧 API URL configured:', API_URL);
+console.log('🔧 Environment mode:', import.meta.env.MODE);
+console.log('🔧 VITE_API_URL from env:', import.meta.env.VITE_API_URL);
 

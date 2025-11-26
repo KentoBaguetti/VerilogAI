@@ -972,7 +972,10 @@ endmodule`,
     ]);
 
     try {
+      const simulateUrl = `${apiUrl}/api/v1/simulate/`;
       console.log("🚀 Sending to backend:");
+      console.log("  URL:", simulateUrl);
+      console.log("  Frontend origin:", window.location.origin);
       console.log(
         "  Module code (first 100 chars):",
         moduleFile.content.substring(0, 100)
@@ -982,7 +985,7 @@ endmodule`,
         testbenchFile.content.substring(0, 100)
       );
 
-      const response = await fetch(`${apiUrl}/api/v1/simulate/`, {
+      const response = await fetch(simulateUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -1040,10 +1043,16 @@ endmodule`,
       });
     } catch (error) {
       console.error("Simulation error:", error);
+      let errorMessage = "Unknown error";
+      
+      if (error instanceof TypeError && error.message.includes("fetch")) {
+        errorMessage = `Network error: Cannot connect to backend at ${apiUrl}. This could be due to:\n- Backend server is not running\n- CORS configuration issue\n- Network connectivity problem\n- Firewall blocking the connection`;
+      } else if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      
       setSimulationLogs(
-        `Error: ${
-          error instanceof Error ? error.message : "Unknown error"
-        }\n\nPlease check:\n- Backend is running (${API_URL})\n- Module and testbench are valid Verilog\n- No syntax errors\n\nTo start backend: cd backend && source venv/bin/activate && uvicorn app.main:app --reload --port 8000`
+        `Error: ${errorMessage}\n\nPlease check:\n- Backend is running at ${apiUrl}\n- Backend CORS allows requests from ${window.location.origin}\n- Module and testbench are valid Verilog\n- No syntax errors\n\nTo start backend: cd backend && source venv/bin/activate && uvicorn app.main:app --host 0.0.0.0 --port 8000`
       );
 
       // Update chat with error
