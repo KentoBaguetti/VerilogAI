@@ -138,6 +138,9 @@ const CodeEditor: React.FC<CodeEditorProps> = ({
                         setIsLoadingCompletion(false);
                     }
                 },
+                disposeInlineCompletions: () => {
+                    // Cleanup if needed
+                },
             }
         );
 
