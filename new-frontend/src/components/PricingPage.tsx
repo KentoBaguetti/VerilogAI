@@ -56,8 +56,8 @@ export default function PricingPage({ onBack }: PricingPageProps) {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-amber-50 to-white">
-      <div className="max-w-7xl mx-auto px-4 py-16 sm:px-6 lg:px-8">
+    <div className="h-screen bg-gradient-to-b from-amber-50 to-white overflow-y-auto">
+      <div className="max-w-7xl mx-auto px-4 py-16 pb-24 sm:px-6 lg:px-8">
         {/* Back Button */}
         <button
           onClick={onBack}
@@ -141,7 +141,7 @@ export default function PricingPage({ onBack }: PricingPageProps) {
         </div>
 
         {/* Footer Note */}
-        <div className="text-center mt-16 pb-16"></div>
+        <div className="text-center mt-16 pb-24"></div>
       </div>
     </div>
   );
