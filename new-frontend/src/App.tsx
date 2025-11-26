@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import LandingPage from "./components/LandingPage";
+import PricingPage from "./components/PricingPage";
 import Header from "./components/Header";
 import Sidebar from "./components/Sidebar";
 import ChatSidebar from "./components/ChatSidebar";
@@ -85,8 +86,10 @@ async function streamChatResponse(
   }
 }
 
+type ViewMode = "landing" | "pricing" | "app";
+
 const App: React.FC = () => {
-  const [started, setStarted] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>("landing");
   const [files, setFiles] = useState<FileItem[]>([
     {
       name: "modules",
@@ -1223,8 +1226,17 @@ endmodule`,
     ]);
   };
 
-  if (!started) {
-    return <LandingPage onStart={() => setStarted(true)} />;
+  if (viewMode === "landing") {
+    return (
+      <LandingPage
+        onStart={() => setViewMode("app")}
+        onViewPricing={() => setViewMode("pricing")}
+      />
+    );
+  }
+
+  if (viewMode === "pricing") {
+    return <PricingPage onBack={() => setViewMode("landing")} />;
   }
 
   return (
