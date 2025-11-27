@@ -36,7 +36,7 @@ const LandingPage: React.FC<LandingPageProps> = ({
             animationDelay: "0.3s",
           }}
         >
-          Collaborative coding workspace for Verilog
+          An all in one coding workspace for Hardware Engineers
         </p>
         <p
           className="text-base mb-12 max-w-xl mx-auto animate-fadeInUp"
@@ -46,9 +46,9 @@ const LandingPage: React.FC<LandingPageProps> = ({
             animationDelay: "0.5s",
           }}
         >
-          Craft beautiful code with AI assistance. A thoughtfully designed
-          editor that brings intelligence and elegance to your development
-          workflow.
+          Web-based Verilog IDE with AI-powered code completion, automated
+          testbench generation, simulation, and waveform visualization for
+          faster hardware design.
         </p>
         <div className="flex flex-row gap-10 justify-center">
           <button
